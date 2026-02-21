@@ -88,7 +88,7 @@ func (m StatsModel) buildContent() string {
 
 	for i, h := range habits {
 		if i > 0 {
-			sb.WriteString("\n" + styleSeparator.Render(strings.Repeat("─", 50)) + "\n\n")
+			sb.WriteString(styleSeparator.Render(strings.Repeat("─", 50)) + "\n")
 		}
 		entries, _ := service.GetEntriesForHabit(m.db, h.ID)
 		hs := service.ComputeWeekStats(h, entries, m.today)
@@ -96,7 +96,7 @@ func (m StatsModel) buildContent() string {
 	}
 
 	global, _ := service.ComputeGlobalStats(m.db, m.today)
-	sb.WriteString("\n" + styleSeparator.Render(strings.Repeat("═", 50)) + "\n")
+	sb.WriteString(styleSeparator.Render(strings.Repeat("═", 50)) + "\n")
 	sb.WriteString(renderGlobalStats(global))
 
 	return sb.String()
@@ -119,6 +119,10 @@ func renderHabitStats(hs model.HabitStats, today time.Time) string {
 	for _, w := range hs.Weeks {
 		weekEnd := w.WeekStart.AddDate(0, 0, 6)
 		weekLabel := w.WeekStart.Format("Jan 2") + "–" + weekEnd.Format("Jan 2")
+		const weekLabelWidth = 13
+		if len(weekLabel) < weekLabelWidth {
+			weekLabel += strings.Repeat(" ", weekLabelWidth-len(weekLabel))
+		}
 		sb.WriteString("  " + styleNormal.Render(weekLabel) + ":  ")
 
 		for _, dr := range w.Days {

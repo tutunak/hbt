@@ -12,6 +12,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+const mainScreenWeeks = 3 // number of rolling weeks shown per habit row
+
 type habitListMode int
 
 const (
@@ -34,6 +36,7 @@ type HabitListModel struct {
 	// Inline stats (loaded on init and refreshed after recording)
 	habitStatuses map[int64]map[time.Time]model.DayStatus
 	lastEntryDate map[int64]*time.Time
+	globalStats   model.GlobalStats
 
 	// Backfill state
 	backfillItems []model.BackfillItem
@@ -67,6 +70,8 @@ func newHabitListModel(db *sql.DB, today time.Time) HabitListModel {
 		led, _ := service.GetLastEntryDate(db, h.ID)
 		m.lastEntryDate[h.ID] = led
 	}
+
+	m.globalStats, _ = service.ComputeGlobalStats(db, today)
 
 	backfillItems, _ := service.GetPendingBackfill(db, today)
 	m.backfillItems = backfillItems
@@ -262,6 +267,13 @@ func (m HabitListModel) View() string {
 	// Separator
 	sb.WriteString(styleSeparator.Render(strings.Repeat("─", sepWidth)) + "\n")
 
+	// Global average (obligated habits only)
+	if m.globalStats.AverageRate >= 0 {
+		sb.WriteString(styleGlobalRate.Render(fmt.Sprintf("Global avg: %s", fmtPct(m.globalStats.AverageRate))) +
+			"  " + styleNormal.Render(fmt.Sprintf("(■ %d  ▪ %d  □ %d)", m.globalStats.TotalGreen, m.globalStats.TotalYellow, m.globalStats.TotalRed)) +
+			"\n")
+	}
+
 	// Help
 	switch m.mode {
 	case modeNormal:
@@ -337,8 +349,17 @@ func (m HabitListModel) renderHabitRow(idx int, h model.Habit, maxNameLen int) s
 			statuses := m.habitStatuses[h.ID]
 			var squares strings.Builder
 			var green, red int
-			for i := -6; i <= 0; i++ {
-				d := m.today.AddDate(0, 0, i)
+			// Show mainScreenWeeks rolling weeks, oldest on left, newest on right.
+			// Each week is 7 days; groups are separated by 2 spaces.
+			totalDays := mainScreenWeeks * 7
+			startOffset := -(totalDays - 1)
+			for offset := startOffset; offset <= 0; offset++ {
+				// Add a group separator between weeks (every 7 days).
+				pos := offset - startOffset // 0-based position
+				if pos > 0 && pos%7 == 0 {
+					squares.WriteString("  ")
+				}
+				d := m.today.AddDate(0, 0, offset)
 				day := time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, time.UTC)
 				status := statuses[day]
 				squares.WriteString(renderSquare(status, day, m.today))

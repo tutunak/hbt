@@ -191,7 +191,7 @@ func ComputeGlobalStats(db *sql.DB, todayDate time.Time) (model.GlobalStats, err
 	rows, err := db.Query(`
 		SELECT id, name, start_date, is_obligated, obligated_since_date,
 		       archived, COALESCE(archive_comment,''), created_at
-		FROM habits WHERE archived = 0`)
+		FROM habits WHERE archived = 0 AND is_obligated = 1`)
 	if err != nil {
 		return model.GlobalStats{}, err
 	}
