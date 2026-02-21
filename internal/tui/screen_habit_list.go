@@ -248,8 +248,14 @@ func (m HabitListModel) View() string {
 	if len(m.habits) == 0 {
 		sb.WriteString(styleNormal.Render("No habits yet. Press [a] to add your first habit.") + "\n")
 	} else {
+		maxNameLen := 0
+		for _, h := range m.habits {
+			if len(h.Name) > maxNameLen {
+				maxNameLen = len(h.Name)
+			}
+		}
 		for i, h := range m.habits {
-			sb.WriteString(m.renderHabitRow(i, h) + "\n")
+			sb.WriteString(m.renderHabitRow(i, h, maxNameLen) + "\n")
 		}
 	}
 
@@ -297,16 +303,12 @@ func (m HabitListModel) renderBackfillBanner() string {
 	return styleBanner.Render(progress+"  "+habitDate) + "\n"
 }
 
-func (m HabitListModel) renderHabitRow(idx int, h model.Habit) string {
+func (m HabitListModel) renderHabitRow(idx int, h model.Habit, maxNameLen int) string {
 	isSelected := idx == m.cursor && m.mode == modeNormal
 
-	// Cursor + name (pad to fixed width for alignment)
-	const nameWidth = 18
+	// Pad name to maxNameLen so every row's stats start at the same column.
 	name := h.Name
-	paddedName := name
-	if len(name) < nameWidth {
-		paddedName = name + strings.Repeat(" ", nameWidth-len(name))
-	}
+	paddedName := name + strings.Repeat(" ", maxNameLen-len(name))
 
 	var namePart string
 	if isSelected {
