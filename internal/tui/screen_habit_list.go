@@ -68,19 +68,24 @@ func (d habitDelegate) Render(w io.Writer, m list.Model, index int, item list.It
 
 // HabitListModel is the main habit selection screen.
 type HabitListModel struct {
-	db     *sql.DB
-	list   list.Model
-	today  time.Time
-	width  int
-	height int
+	db                 *sql.DB
+	list               list.Model
+	today              time.Time
+	width              int
+	height             int
+	nonObligatedCount  int
 }
 
 func newHabitListModel(db *sql.DB, today time.Time) HabitListModel {
 	habits, _ := service.ListHabits(db, false)
 
+	var nonObligatedCount int
 	items := make([]list.Item, len(habits))
 	for i, h := range habits {
 		items[i] = habitItem{habit: h, today: today}
+		if !h.IsObligated {
+			nonObligatedCount++
+		}
 	}
 
 	l := list.New(items, habitDelegate{}, 80, 24)
@@ -90,7 +95,7 @@ func newHabitListModel(db *sql.DB, today time.Time) HabitListModel {
 	l.SetFilteringEnabled(false)
 	l.SetShowHelp(false)
 
-	return HabitListModel{db: db, list: l, today: today}
+	return HabitListModel{db: db, list: l, today: today, nonObligatedCount: nonObligatedCount}
 }
 
 func (m HabitListModel) Init() tea.Cmd { return nil }
@@ -132,5 +137,9 @@ func (m HabitListModel) View() string {
 		empty := styleNormal.Render("No habits yet. Press [a] to add your first habit.")
 		return styleTitle.Render("Habit Tracker") + "\n\n" + empty + "\n" + help
 	}
-	return m.list.View() + "\n" + help
+	var warning string
+	if m.nonObligatedCount < 4 {
+		warning = styleWarning.Render(fmt.Sprintf("⚠ Only %d non-obligated habit(s). Consider adding more.", m.nonObligatedCount)) + "\n"
+	}
+	return warning + m.list.View() + "\n" + help
 }

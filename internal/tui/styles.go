@@ -73,4 +73,7 @@ var (
 
 	styleSeparator = lipgloss.NewStyle().
 			Foreground(colorGray)
+
+	colorWarning = lipgloss.Color("#F97316")
+	styleWarning = lipgloss.NewStyle().Foreground(colorWarning).Bold(true)
 )

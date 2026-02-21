@@ -15,9 +15,14 @@ func d(s string) time.Time {
 	return t
 }
 
-// makeHabit returns a minimal Habit with the given start date.
+// makeHabit returns an obligated Habit (ObligatedSinceDate=nil → always strict rules).
 func makeHabit(startDate string) model.Habit {
-	return model.Habit{StartDate: d(startDate)}
+	return model.Habit{StartDate: d(startDate), IsObligated: true}
+}
+
+// makeNonObligatedHabit returns a non-obligated Habit (all skips are yellow).
+func makeNonObligatedHabit(startDate string) model.Habit {
+	return model.Habit{StartDate: d(startDate), IsObligated: false}
 }
 
 // entry returns a model.Entry for a given date with did_it set.
@@ -553,4 +558,109 @@ func abs(x float64) float64 {
 		return -x
 	}
 	return x
+}
+
+// ------- Non-obligated skip rule -------
+
+func TestComputeDayStatuses_NonObligated_ConsecutiveSkips_AllYellow(t *testing.T) {
+	h := makeNonObligatedHabit("2024-01-08")
+	today := d("2024-01-12")
+	entries := []model.Entry{
+		entry("2024-01-08", true),
+		entry("2024-01-09", false), // consecutive
+		entry("2024-01-10", false), // consecutive
+		entry("2024-01-11", false), // consecutive
+		entry("2024-01-12", true),
+	}
+	statuses := ComputeDayStatuses(h, entries, today)
+
+	for _, date := range []string{"2024-01-09", "2024-01-10", "2024-01-11"} {
+		if got := statuses[d(date)]; got != model.DayYellow {
+			t.Errorf("non-obligated consecutive skip %s: got %v, want DayYellow", date, got)
+		}
+	}
+}
+
+func TestComputeDayStatuses_NonObligated_SingleSkip_Yellow(t *testing.T) {
+	h := makeNonObligatedHabit("2024-01-08")
+	today := d("2024-01-10")
+	entries := []model.Entry{
+		entry("2024-01-08", true),
+		entry("2024-01-09", false),
+		entry("2024-01-10", true),
+	}
+	statuses := ComputeDayStatuses(h, entries, today)
+
+	if got := statuses[d("2024-01-09")]; got != model.DayYellow {
+		t.Errorf("non-obligated single skip: got %v, want DayYellow", got)
+	}
+}
+
+func TestComputeDayStatuses_ObligationTransition(t *testing.T) {
+	// Habit becomes obligated on Jan 10. Skips before that are yellow, after are red.
+	since := d("2024-01-10")
+	h := model.Habit{
+		StartDate:          d("2024-01-08"),
+		IsObligated:        true,
+		ObligatedSinceDate: &since,
+	}
+	today := d("2024-01-13")
+	entries := []model.Entry{
+		entry("2024-01-08", false), // pre-obligated: yellow
+		entry("2024-01-09", false), // pre-obligated: yellow (consecutive with Jan 8 but both non-obligated)
+		entry("2024-01-10", true),
+		entry("2024-01-11", false), // obligated: red (adjacent to Jan 12)
+		entry("2024-01-12", false), // obligated: red (adjacent to Jan 11)
+		entry("2024-01-13", true),
+	}
+	statuses := ComputeDayStatuses(h, entries, today)
+
+	if got := statuses[d("2024-01-08")]; got != model.DayYellow {
+		t.Errorf("Jan 8 (pre-obligated): got %v, want DayYellow", got)
+	}
+	if got := statuses[d("2024-01-09")]; got != model.DayYellow {
+		t.Errorf("Jan 9 (pre-obligated): got %v, want DayYellow", got)
+	}
+	if got := statuses[d("2024-01-10")]; got != model.DayDone {
+		t.Errorf("Jan 10: got %v, want DayDone", got)
+	}
+	if got := statuses[d("2024-01-11")]; got != model.DayRed {
+		t.Errorf("Jan 11 (obligated consecutive): got %v, want DayRed", got)
+	}
+	if got := statuses[d("2024-01-12")]; got != model.DayRed {
+		t.Errorf("Jan 12 (obligated consecutive): got %v, want DayRed", got)
+	}
+}
+
+func TestComputeWeekStats_NonObligated_OneGreenSixSkips_100Percent(t *testing.T) {
+	// Non-obligated: 1 green + 6 skips → all skips are yellow → denom=1, rate=100%
+	h := makeNonObligatedHabit("2024-01-08")
+	today := d("2024-01-14")
+	entries := []model.Entry{
+		entry("2024-01-08", true),
+		entry("2024-01-09", false),
+		entry("2024-01-10", false),
+		entry("2024-01-11", false),
+		entry("2024-01-12", false),
+		entry("2024-01-13", false),
+		entry("2024-01-14", false),
+	}
+	hs := ComputeWeekStats(h, entries, today)
+
+	if len(hs.Weeks) != 1 {
+		t.Fatalf("expected 1 week, got %d", len(hs.Weeks))
+	}
+	w := hs.Weeks[0]
+	if w.GreenCount != 1 {
+		t.Errorf("GreenCount = %d, want 1", w.GreenCount)
+	}
+	if w.YellowCount != 6 {
+		t.Errorf("YellowCount = %d, want 6", w.YellowCount)
+	}
+	if w.RedCount != 0 {
+		t.Errorf("RedCount = %d, want 0", w.RedCount)
+	}
+	if w.SuccessRate != 1.0 {
+		t.Errorf("SuccessRate = %v, want 1.0 (100%% for non-obligated)", w.SuccessRate)
+	}
 }

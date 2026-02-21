@@ -725,6 +725,8 @@ func TestAppModel_New_PendingBackfill_StartsAtBackfill(t *testing.T) {
 	h, _ := service.CreateHabit(database, "Run", yesterday.AddDate(0, 0, -1), false, nil)
 	_ = service.RecordEntry(database, h.ID, yesterday.AddDate(0, 0, -1), true)
 	// gap on yesterday — should trigger backfill
+	// Pre-record promotion so the app skips the promotion screen and lands on backfill.
+	_ = service.RecordWeeklyPromotion(database, today)
 
 	app, err := New(database)
 	if err != nil {

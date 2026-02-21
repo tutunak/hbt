@@ -23,4 +23,8 @@ CREATE TABLE IF NOT EXISTS entries (
 
 CREATE INDEX IF NOT EXISTS idx_entries_habit_date ON entries(habit_id, entry_date);
 CREATE INDEX IF NOT EXISTS idx_habits_archived ON habits(archived);
+
+CREATE TABLE IF NOT EXISTS weekly_promotions (
+    week_start TEXT PRIMARY KEY  -- Monday date "YYYY-MM-DD"
+);
 `

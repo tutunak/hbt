@@ -14,7 +14,7 @@ func TestOpen_CreatesTablesAndIndexes(t *testing.T) {
 	}
 	defer db.Close()
 
-	tables := []string{"habits", "entries"}
+	tables := []string{"habits", "entries", "weekly_promotions"}
 	for _, tbl := range tables {
 		var name string
 		err := db.QueryRow(

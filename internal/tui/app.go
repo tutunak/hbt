@@ -13,7 +13,8 @@ import (
 type screen int
 
 const (
-	screenBackfill screen = iota
+	screenObligationPromotion screen = iota
+	screenBackfill
 	screenHabitList
 	screenTrack
 	screenAddHabit
@@ -29,6 +30,7 @@ type switchToAddHabitMsg struct{}
 type switchToArchiveMsg struct{ habit model.Habit }
 type switchToStatsMsg struct{}
 type switchToBackfillMsg struct{}
+type switchToObligationPromotionMsg struct{}
 
 // AppModel is the root TUI model.
 type AppModel struct {
@@ -38,12 +40,13 @@ type AppModel struct {
 	width  int
 	height int
 
-	backfill  BackfillModel
-	habitList HabitListModel
-	track     TrackModel
-	addHabit  AddHabitModel
-	archive   ArchiveModel
-	stats     StatsModel
+	obligationPromotion ObligationPromotionModel
+	backfill            BackfillModel
+	habitList           HabitListModel
+	track               TrackModel
+	addHabit            AddHabitModel
+	archive             ArchiveModel
+	stats               StatsModel
 
 	err string
 }
@@ -53,14 +56,29 @@ func New(db *sql.DB) (AppModel, error) {
 	today := time.Now().UTC()
 	today = time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, time.UTC)
 
+	var m AppModel
+	m.db = db
+	m.today = today
+
+	needsPromotion, err := service.NeedsWeeklyPromotion(db, today)
+	if err != nil {
+		return AppModel{}, fmt.Errorf("check promotion: %w", err)
+	}
+
+	if needsPromotion {
+		habits, err := service.ListNonObligatedHabits(db)
+		if err != nil {
+			return AppModel{}, fmt.Errorf("list non-obligated habits: %w", err)
+		}
+		m.screen = screenObligationPromotion
+		m.obligationPromotion = newObligationPromotionModel(db, habits, today)
+		return m, nil
+	}
+
 	items, err := service.GetPendingBackfill(db, today)
 	if err != nil {
 		return AppModel{}, fmt.Errorf("load backfill: %w", err)
 	}
-
-	var m AppModel
-	m.db = db
-	m.today = today
 
 	if len(items) > 0 {
 		m.screen = screenBackfill
@@ -75,6 +93,8 @@ func New(db *sql.DB) (AppModel, error) {
 
 func (m AppModel) Init() tea.Cmd {
 	switch m.screen {
+	case screenObligationPromotion:
+		return m.obligationPromotion.Init()
 	case screenBackfill:
 		return m.backfill.Init()
 	case screenHabitList:
@@ -141,11 +161,25 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.screen = screenBackfill
 		m.backfill = newBackfillModel(m.db, items, m.today)
 		return m, m.backfill.Init()
+
+	case switchToObligationPromotionMsg:
+		habits, err := service.ListNonObligatedHabits(m.db)
+		if err != nil {
+			m.err = err.Error()
+			return m, nil
+		}
+		m.screen = screenObligationPromotion
+		m.obligationPromotion = newObligationPromotionModel(m.db, habits, m.today)
+		return m, m.obligationPromotion.Init()
 	}
 
 	// Delegate to active sub-model.
 	var cmd tea.Cmd
 	switch m.screen {
+	case screenObligationPromotion:
+		var sub tea.Model
+		sub, cmd = m.obligationPromotion.Update(msg)
+		m.obligationPromotion = sub.(ObligationPromotionModel)
 	case screenBackfill:
 		var sub tea.Model
 		sub, cmd = m.backfill.Update(msg)
@@ -179,6 +213,8 @@ func (m AppModel) View() string {
 		return styleError.Render("Error: "+m.err) + "\n" + styleHelp.Render("Press q to quit")
 	}
 	switch m.screen {
+	case screenObligationPromotion:
+		return m.obligationPromotion.View()
 	case screenBackfill:
 		return m.backfill.View()
 	case screenHabitList:

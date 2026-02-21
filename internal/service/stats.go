@@ -20,6 +20,20 @@ func truncDay(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
 }
 
+// isNonObligatedDay returns true if the given date should be treated as non-obligated,
+// meaning all skips on that day are yellow regardless of adjacency.
+// A day is non-obligated if the habit is not obligated, or if it has an ObligatedSinceDate
+// and the date falls before that date.
+func isNonObligatedDay(h model.Habit, date time.Time) bool {
+	if !h.IsObligated {
+		return true
+	}
+	if h.ObligatedSinceDate == nil {
+		return false // always strict
+	}
+	return date.Before(*h.ObligatedSinceDate)
+}
+
 // ComputeDayStatuses assigns a DayStatus to every day from start_date to today (inclusive).
 // Days before the first recorded entry are DayUnknown.
 // Coloring rules:
@@ -71,9 +85,17 @@ func ComputeDayStatuses(habit model.Habit, entries []model.Entry, todayDate time
 			result[di.date] = model.DayDone
 			continue
 		}
-		// This day is a skip (did_it=false). Check neighbours.
-		prevSkip := i > 0 && days[i-1].entry != nil && !days[i-1].entry.DidIt
-		nextSkip := i < len(days)-1 && days[i+1].entry != nil && !days[i+1].entry.DidIt
+		// This day is a skip (did_it=false).
+		// Non-obligated days are always yellow regardless of adjacency.
+		if isNonObligatedDay(habit, di.date) {
+			result[di.date] = model.DayYellow
+			continue
+		}
+		// Obligated skip: check neighbours, but only count adjacent obligated skips.
+		prevSkip := i > 0 && days[i-1].entry != nil && !days[i-1].entry.DidIt &&
+			!isNonObligatedDay(habit, days[i-1].date)
+		nextSkip := i < len(days)-1 && days[i+1].entry != nil && !days[i+1].entry.DidIt &&
+			!isNonObligatedDay(habit, days[i+1].date)
 		if prevSkip || nextSkip {
 			result[di.date] = model.DayRed
 		} else {
