@@ -62,43 +62,36 @@ func GetEntriesForHabit(db *sql.DB, habitID int64) ([]model.Entry, error) {
 	return entries, rows.Err()
 }
 
-// GetPendingBackfill returns BackfillItems: habits with at least one past entry
-// where specific dates (from earliest entry to yesterday) have no row at all.
+// GetPendingBackfill returns BackfillItems: non-archived habits whose start_date
+// is before today, for each calendar day from start_date to yesterday that has no entry.
 func GetPendingBackfill(db *sql.DB, todayDate time.Time) ([]model.BackfillItem, error) {
-	yesterday := todayDate.AddDate(0, 0, -1)
+	today := truncDay(todayDate)
+	yesterday := today.AddDate(0, 0, -1)
 
-	// Find non-archived habits that have at least one entry before today.
+	// Find all non-archived habits that started before today.
 	rows, err := db.Query(`
 		SELECT h.id, h.name, h.start_date, h.is_obligated, h.obligated_since_date,
-		       h.archived, COALESCE(h.archive_comment,''), h.created_at,
-		       MIN(e.entry_date) AS min_date
+		       h.archived, COALESCE(h.archive_comment,''), h.created_at
 		FROM habits h
-		JOIN entries e ON e.habit_id = h.id AND e.entry_date < ?
-		WHERE h.archived = 0
-		GROUP BY h.id
+		WHERE h.archived = 0 AND h.start_date < ?
 		ORDER BY h.is_obligated DESC, h.start_date ASC`,
-		fmtDate(todayDate),
+		fmtDate(today),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("backfill query: %w", err)
 	}
 	defer rows.Close()
 
-	type habitMin struct {
-		habit   model.Habit
-		minDate time.Time
-	}
-	var candidates []habitMin
-
+	var habits []model.Habit
 	for rows.Next() {
 		var h model.Habit
-		var startDate, createdAt, minDateStr string
+		var startDate, createdAt string
 		var oblSince sql.NullString
 		var isObligated, archived int
 
 		err := rows.Scan(
 			&h.ID, &h.Name, &startDate, &isObligated, &oblSince,
-			&archived, &h.ArchiveComment, &createdAt, &minDateStr,
+			&archived, &h.ArchiveComment, &createdAt,
 		)
 		if err != nil {
 			return nil, err
@@ -110,24 +103,22 @@ func GetPendingBackfill(db *sql.DB, todayDate time.Time) ([]model.BackfillItem, 
 			t, _ := parseDate(oblSince.String)
 			h.ObligatedSinceDate = &t
 		}
-		minDate, err := parseDate(minDateStr)
-		if err != nil {
-			return nil, err
-		}
-		candidates = append(candidates, habitMin{habit: h, minDate: minDate})
+		habits = append(habits, h)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
 	var items []model.BackfillItem
-	for _, c := range candidates {
+	for _, h := range habits {
+		rangeStart := truncDay(h.StartDate)
+
 		// Load existing entry dates for this habit in the range.
 		entryRows, err := db.Query(`
 			SELECT entry_date FROM entries
 			WHERE habit_id = ? AND entry_date >= ? AND entry_date <= ?
 			ORDER BY entry_date ASC`,
-			c.habit.ID, fmtDate(c.minDate), fmtDate(yesterday),
+			h.ID, fmtDate(rangeStart), fmtDate(yesterday),
 		)
 		if err != nil {
 			return nil, err
@@ -143,10 +134,10 @@ func GetPendingBackfill(db *sql.DB, todayDate time.Time) ([]model.BackfillItem, 
 		}
 		entryRows.Close()
 
-		// Walk each date from minDate to yesterday, collect gaps.
-		for d := c.minDate; !d.After(yesterday); d = d.AddDate(0, 0, 1) {
+		// Walk each date from start_date to yesterday, collect gaps.
+		for d := rangeStart; !d.After(yesterday); d = d.AddDate(0, 0, 1) {
 			if !existing[fmtDate(d)] {
-				items = append(items, model.BackfillItem{Habit: c.habit, Date: d})
+				items = append(items, model.BackfillItem{Habit: h, Date: d})
 			}
 		}
 	}

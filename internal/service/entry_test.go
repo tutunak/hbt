@@ -142,16 +142,17 @@ func TestGetPendingBackfill_NoHabits(t *testing.T) {
 	}
 }
 
-func TestGetPendingBackfill_HabitWithNoEntries_Excluded(t *testing.T) {
+func TestGetPendingBackfill_HabitWithNoEntries_GetsBackfill(t *testing.T) {
 	database := openTestDB(t)
+	// start_date=Jan 1, today=Jan 15 — 14 days (Jan 1–Jan 14) have no entries
 	_, _ = CreateHabit(database, "New Habit", d("2024-01-01"), false, nil)
 
 	items, err := GetPendingBackfill(database, d("2024-01-15"))
 	if err != nil {
 		t.Fatalf("GetPendingBackfill: %v", err)
 	}
-	if len(items) != 0 {
-		t.Errorf("habit with no entries should not generate backfill, got %d items", len(items))
+	if len(items) != 14 {
+		t.Errorf("expected 14 backfill items (Jan 1–Jan 14), got %d", len(items))
 	}
 }
 
@@ -277,9 +278,10 @@ func TestGetPendingBackfill_MultipleHabits(t *testing.T) {
 	}
 }
 
-func TestGetPendingBackfill_DaysBeforeFirstEntry_NotIncluded(t *testing.T) {
+func TestGetPendingBackfill_DaysBeforeFirstEntry_AreIncluded(t *testing.T) {
 	database := openTestDB(t)
-	// Habit starts Jan 1, first entry on Jan 10 — should not backfill Jan 1-9.
+	// Habit starts Jan 1, first entry on Jan 10, today=Jan 11.
+	// Backfill should cover Jan 1–9 (no entries) but NOT Jan 10 (has entry).
 	h, _ := CreateHabit(database, "Run", d("2024-01-01"), false, nil)
 	today := d("2024-01-11")
 
@@ -289,27 +291,37 @@ func TestGetPendingBackfill_DaysBeforeFirstEntry_NotIncluded(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetPendingBackfill: %v", err)
 	}
+	if len(items) != 9 {
+		t.Errorf("expected 9 backfill items (Jan 1–Jan 9), got %d", len(items))
+	}
 	for _, item := range items {
-		if item.Date.Before(d("2024-01-10")) {
-			t.Errorf("backfill includes date %v which is before first entry", item.Date)
+		if !item.Date.Before(d("2024-01-10")) {
+			t.Errorf("backfill should not include %v (Jan 10 has an entry)", item.Date)
 		}
 	}
 }
 
-func TestGetPendingBackfill_EntryOnlyOnTodayExcluded(t *testing.T) {
+func TestGetPendingBackfill_EntryOnlyOnToday_BackfillsStartDate(t *testing.T) {
 	database := openTestDB(t)
+	// start_date=Jan 8, only entry on today (Jan 9).
+	// Jan 8 has no entry and is before today → should appear in backfill.
 	h, _ := CreateHabit(database, "Run", d("2024-01-08"), false, nil)
 	today := d("2024-01-09")
 
-	// Only entry is today
 	_ = RecordEntry(database, h.ID, today, true)
 
 	items, err := GetPendingBackfill(database, today)
 	if err != nil {
 		t.Fatalf("GetPendingBackfill: %v", err)
 	}
-	if len(items) != 0 {
-		t.Errorf("entry only on today should not create backfill, got %d items", len(items))
+	if len(items) != 1 {
+		t.Fatalf("expected 1 backfill item (Jan 8), got %d", len(items))
+	}
+	if !items[0].Date.Equal(d("2024-01-08")) {
+		t.Errorf("backfill date = %v, want 2024-01-08", items[0].Date)
+	}
+	if items[0].Habit.ID != h.ID {
+		t.Errorf("habit ID = %d, want %d", items[0].Habit.ID, h.ID)
 	}
 }
 
