@@ -146,24 +146,6 @@ func renderHabitStats(hs model.HabitStats, today time.Time) string {
 	return sb.String()
 }
 
-func renderSquare(status model.DayStatus, date, today time.Time) string {
-	switch status {
-	case model.DayDone:
-		return squareDone.Render("[■]")
-	case model.DayYellow:
-		return squareYellow.Render("[▪]")
-	case model.DayRed:
-		return squareRed.Render("[□]")
-	case model.DayFuture:
-		return squareGray.Render("   ")
-	default: // DayUnknown
-		if date.Equal(today) {
-			return squareGray.Render("[?]")
-		}
-		return squareGray.Render("[ ]")
-	}
-}
-
 func renderWeekRate(w model.WeekStats) string {
 	if w.SuccessRate < 0 {
 		return styleWeekRate.Render("(no data)")
@@ -182,6 +164,3 @@ func renderGlobalStats(gs model.GlobalStats) string {
 		"\n"
 }
 
-func fmtPct(r float64) string {
-	return fmt.Sprintf("%.0f%%", r*100)
-}

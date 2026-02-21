@@ -145,6 +145,23 @@ func GetPendingBackfill(db *sql.DB, todayDate time.Time) ([]model.BackfillItem, 
 	return items, nil
 }
 
+// GetLastEntryDate returns the most recent entry_date for a habit, or nil if none.
+func GetLastEntryDate(db *sql.DB, habitID int64) (*time.Time, error) {
+	var dateStr sql.NullString
+	err := db.QueryRow(`SELECT MAX(entry_date) FROM entries WHERE habit_id = ?`, habitID).Scan(&dateStr)
+	if err != nil {
+		return nil, err
+	}
+	if !dateStr.Valid {
+		return nil, nil
+	}
+	t, err := parseDate(dateStr.String)
+	if err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
 func scanEntry(scan func(...any) error) (model.Entry, error) {
 	var e model.Entry
 	var entryDate, createdAt string

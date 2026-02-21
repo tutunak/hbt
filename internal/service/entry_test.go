@@ -344,6 +344,40 @@ func TestScanEntry_DatePreserved(t *testing.T) {
 	}
 }
 
+func TestGetLastEntryDate_NoEntries(t *testing.T) {
+	database := openTestDB(t)
+	h, _ := CreateHabit(database, "Run", d("2024-01-01"), false, nil)
+
+	got, err := GetLastEntryDate(database, h.ID)
+	if err != nil {
+		t.Fatalf("GetLastEntryDate: %v", err)
+	}
+	if got != nil {
+		t.Errorf("expected nil for habit with no entries, got %v", *got)
+	}
+}
+
+func TestGetLastEntryDate_WithEntries(t *testing.T) {
+	database := openTestDB(t)
+	h, _ := CreateHabit(database, "Run", d("2024-01-01"), false, nil)
+
+	_ = RecordEntry(database, h.ID, d("2024-01-05"), true)
+	_ = RecordEntry(database, h.ID, d("2024-01-10"), false)
+	_ = RecordEntry(database, h.ID, d("2024-01-03"), true)
+
+	got, err := GetLastEntryDate(database, h.ID)
+	if err != nil {
+		t.Fatalf("GetLastEntryDate: %v", err)
+	}
+	if got == nil {
+		t.Fatal("expected non-nil last entry date")
+	}
+	want := d("2024-01-10")
+	if !got.Equal(want) {
+		t.Errorf("GetLastEntryDate = %v, want %v", *got, want)
+	}
+}
+
 func TestRecordEntry_DateNormalizedToMidnight(t *testing.T) {
 	database := openTestDB(t)
 	h, _ := CreateHabit(database, "Run", d("2024-01-01"), false, nil)

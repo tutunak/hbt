@@ -1,6 +1,12 @@
 package tui
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"fmt"
+	"hbt/internal/model"
+	"time"
+
+	"github.com/charmbracelet/lipgloss"
+)
 
 var (
 	colorGreen  = lipgloss.Color("#22C55E")
@@ -76,4 +82,28 @@ var (
 
 	colorWarning = lipgloss.Color("#F97316")
 	styleWarning = lipgloss.NewStyle().Foreground(colorWarning).Bold(true)
+
+	styleBanner = lipgloss.NewStyle().Foreground(colorAccent).Bold(true)
 )
+
+func renderSquare(status model.DayStatus, date, today time.Time) string {
+	switch status {
+	case model.DayDone:
+		return squareDone.Render("[■]")
+	case model.DayYellow:
+		return squareYellow.Render("[▪]")
+	case model.DayRed:
+		return squareRed.Render("[□]")
+	case model.DayFuture:
+		return squareGray.Render("   ")
+	default: // DayUnknown
+		if date.Equal(today) {
+			return squareGray.Render("[?]")
+		}
+		return squareGray.Render("[ ]")
+	}
+}
+
+func fmtPct(r float64) string {
+	return fmt.Sprintf("%.0f%%", r*100)
+}

@@ -60,260 +60,6 @@ func runCmd(cmd tea.Cmd) tea.Msg {
 	return cmd()
 }
 
-// ---- BackfillModel tests ----
-
-func TestBackfillModel_SKey_SkipsWithoutRecording(t *testing.T) {
-	database := tuiTestDB(t)
-	today := td("2024-01-10")
-	h, _ := service.CreateHabit(database, "Run", td("2024-01-08"), false, nil)
-	_ = service.RecordEntry(database, h.ID, td("2024-01-08"), true)
-
-	items := []model.BackfillItem{
-		{Habit: h, Date: td("2024-01-09")},
-	}
-	m := newBackfillModel(database, items, today)
-
-	updated, cmd := m.Update(key('s'))
-	bm := updated.(BackfillModel)
-
-	// Should advance to end
-	if bm.index != 1 {
-		t.Errorf("index = %d, want 1 after skip", bm.index)
-	}
-
-	// No entry should have been recorded
-	e, _ := service.GetEntryForDay(database, h.ID, td("2024-01-09"))
-	if e != nil {
-		t.Error("skip should not record an entry")
-	}
-
-	// Should emit switchToHabitListMsg
-	msg := runCmd(cmd)
-	if _, ok := msg.(switchToHabitListMsg); !ok {
-		t.Errorf("expected switchToHabitListMsg after last item, got %T", msg)
-	}
-}
-
-func TestBackfillModel_YKey_RecordsDoneAndAdvances(t *testing.T) {
-	database := tuiTestDB(t)
-	today := td("2024-01-10")
-	h, _ := service.CreateHabit(database, "Run", td("2024-01-08"), false, nil)
-	_ = service.RecordEntry(database, h.ID, td("2024-01-08"), true)
-
-	items := []model.BackfillItem{
-		{Habit: h, Date: td("2024-01-09")},
-	}
-	m := newBackfillModel(database, items, today)
-
-	updated, cmd := m.Update(key('y'))
-	bm := updated.(BackfillModel)
-
-	if bm.index != 1 {
-		t.Errorf("index = %d, want 1 after yes", bm.index)
-	}
-
-	e, _ := service.GetEntryForDay(database, h.ID, td("2024-01-09"))
-	if e == nil || !e.DidIt {
-		t.Error("y key should record entry as done")
-	}
-
-	msg := runCmd(cmd)
-	if _, ok := msg.(switchToHabitListMsg); !ok {
-		t.Errorf("expected switchToHabitListMsg, got %T", msg)
-	}
-}
-
-func TestBackfillModel_NKey_RecordsSkippedAndAdvances(t *testing.T) {
-	database := tuiTestDB(t)
-	today := td("2024-01-10")
-	h, _ := service.CreateHabit(database, "Run", td("2024-01-08"), false, nil)
-	_ = service.RecordEntry(database, h.ID, td("2024-01-08"), true)
-
-	items := []model.BackfillItem{
-		{Habit: h, Date: td("2024-01-09")},
-	}
-	m := newBackfillModel(database, items, today)
-
-	updated, _ := m.Update(key('n'))
-	bm := updated.(BackfillModel)
-
-	e, _ := service.GetEntryForDay(database, h.ID, td("2024-01-09"))
-	if e == nil || e.DidIt {
-		t.Error("n key should record entry as skipped (did_it=false)")
-	}
-	_ = bm
-}
-
-func TestBackfillModel_MultipleItems_IteratesThroughAll(t *testing.T) {
-	database := tuiTestDB(t)
-	today := td("2024-01-12")
-	h, _ := service.CreateHabit(database, "Run", td("2024-01-08"), false, nil)
-	_ = service.RecordEntry(database, h.ID, td("2024-01-08"), true)
-
-	items := []model.BackfillItem{
-		{Habit: h, Date: td("2024-01-09")},
-		{Habit: h, Date: td("2024-01-10")},
-		{Habit: h, Date: td("2024-01-11")},
-	}
-	m := newBackfillModel(database, items, today)
-
-	// Answer 'y' to first two
-	updated, _ := m.Update(key('y'))
-	m = updated.(BackfillModel)
-	updated, _ = m.Update(key('y'))
-	m = updated.(BackfillModel)
-
-	if m.index != 2 {
-		t.Errorf("index = %d after 2 answers, want 2", m.index)
-	}
-
-	// Answer last one
-	_, cmd := m.Update(key('s'))
-	msg := runCmd(cmd)
-	if _, ok := msg.(switchToHabitListMsg); !ok {
-		t.Errorf("expected switchToHabitListMsg after all items, got %T", msg)
-	}
-}
-
-func TestBackfillModel_View_ShowsHabitNameAndDate(t *testing.T) {
-	database := tuiTestDB(t)
-	today := td("2024-01-10")
-	h, _ := service.CreateHabit(database, "Morning run", td("2024-01-08"), false, nil)
-	_ = service.RecordEntry(database, h.ID, td("2024-01-08"), true)
-
-	items := []model.BackfillItem{
-		{Habit: h, Date: td("2024-01-09")},
-	}
-	m := newBackfillModel(database, items, today)
-
-	view := m.View()
-	if !strings.Contains(view, "Morning run") {
-		t.Errorf("view should contain habit name, got: %s", view)
-	}
-	if !strings.Contains(view, "Jan 9") {
-		t.Errorf("view should contain date, got: %s", view)
-	}
-}
-
-func TestBackfillModel_View_ShowsProgress(t *testing.T) {
-	database := tuiTestDB(t)
-	today := td("2024-01-11")
-	h, _ := service.CreateHabit(database, "Run", td("2024-01-08"), false, nil)
-	_ = service.RecordEntry(database, h.ID, td("2024-01-08"), true)
-
-	items := []model.BackfillItem{
-		{Habit: h, Date: td("2024-01-09")},
-		{Habit: h, Date: td("2024-01-10")},
-	}
-	m := newBackfillModel(database, items, today)
-
-	view := m.View()
-	if !strings.Contains(view, "1 of 2") {
-		t.Errorf("view should show progress, got: %s", view)
-	}
-}
-
-// ---- TrackModel tests ----
-
-func TestTrackModel_YKey_RecordsDone(t *testing.T) {
-	database := tuiTestDB(t)
-	today := td("2024-01-08")
-	h, _ := service.CreateHabit(database, "Run", today, false, nil)
-
-	m := newTrackModel(database, h, today)
-
-	updated, _ := m.Update(key('y'))
-	tm := updated.(TrackModel)
-
-	if !tm.done {
-		t.Error("done flag should be set after y key")
-	}
-
-	e, _ := service.GetEntryForDay(database, h.ID, today)
-	if e == nil || !e.DidIt {
-		t.Error("y key should record entry as done")
-	}
-}
-
-func TestTrackModel_EnterKey_RecordsDone(t *testing.T) {
-	database := tuiTestDB(t)
-	today := td("2024-01-08")
-	h, _ := service.CreateHabit(database, "Run", today, false, nil)
-
-	m := newTrackModel(database, h, today)
-	updated, _ := m.Update(keyStr("enter"))
-	tm := updated.(TrackModel)
-
-	if !tm.done {
-		t.Error("done flag should be set after enter key")
-	}
-	e, _ := service.GetEntryForDay(database, h.ID, today)
-	if e == nil || !e.DidIt {
-		t.Error("enter key should record entry as done")
-	}
-}
-
-func TestTrackModel_NKey_RecordsSkipped(t *testing.T) {
-	database := tuiTestDB(t)
-	today := td("2024-01-08")
-	h, _ := service.CreateHabit(database, "Run", today, false, nil)
-
-	m := newTrackModel(database, h, today)
-	updated, _ := m.Update(key('n'))
-	tm := updated.(TrackModel)
-
-	if !tm.done {
-		t.Error("done flag should be set after n key")
-	}
-	e, _ := service.GetEntryForDay(database, h.ID, today)
-	if e == nil || e.DidIt {
-		t.Error("n key should record entry as skipped")
-	}
-}
-
-func TestTrackModel_EscKey_NavigatesBack(t *testing.T) {
-	database := tuiTestDB(t)
-	today := td("2024-01-08")
-	h, _ := service.CreateHabit(database, "Run", today, false, nil)
-
-	m := newTrackModel(database, h, today)
-	_, cmd := m.Update(keyStr("esc"))
-
-	msg := runCmd(cmd)
-	if _, ok := msg.(switchToHabitListMsg); !ok {
-		t.Errorf("esc should emit switchToHabitListMsg, got %T", msg)
-	}
-}
-
-func TestTrackModel_ShowsExistingEntryStatus(t *testing.T) {
-	database := tuiTestDB(t)
-	today := td("2024-01-08")
-	h, _ := service.CreateHabit(database, "Run", today, false, nil)
-	_ = service.RecordEntry(database, h.ID, today, true)
-
-	m := newTrackModel(database, h, today)
-
-	if m.current == nil {
-		t.Error("current should be set when an entry exists for today")
-	}
-	if !m.current.DidIt {
-		t.Error("current.DidIt should be true")
-	}
-}
-
-func TestTrackModel_View_ContainsHabitName(t *testing.T) {
-	database := tuiTestDB(t)
-	today := td("2024-01-08")
-	h, _ := service.CreateHabit(database, "Drink water", today, false, nil)
-
-	m := newTrackModel(database, h, today)
-	view := m.View()
-
-	if !strings.Contains(view, "Drink water") {
-		t.Errorf("view should contain habit name, got: %s", view)
-	}
-}
-
 // ---- AddHabitModel tests ----
 
 func TestAddHabitModel_EmptyName_ShowsError(t *testing.T) {
@@ -702,9 +448,189 @@ func TestHabitListModel_QKey_Quits(t *testing.T) {
 	}
 }
 
+func TestHabitListModel_InlineTracking_YKey_RecordsEntry(t *testing.T) {
+	database := tuiTestDB(t)
+	today := td("2024-01-08") // Monday — need to record promotion to avoid promotion mode
+
+	h, _ := service.CreateHabit(database, "Run", today, false, nil)
+	_ = service.RecordWeeklyPromotion(database, today) // habit started today, no backfill
+
+	m := newHabitListModel(database, today)
+	if m.mode != modeNormal {
+		t.Fatalf("expected modeNormal, got %v", m.mode)
+	}
+
+	_, _ = m.Update(key('y'))
+
+	e, err := service.GetEntryForDay(database, h.ID, today)
+	if err != nil {
+		t.Fatalf("GetEntryForDay: %v", err)
+	}
+	if e == nil || !e.DidIt {
+		t.Error("y key should record entry as done")
+	}
+}
+
+func TestHabitListModel_InlineTracking_NKey_RecordsEntry(t *testing.T) {
+	database := tuiTestDB(t)
+	today := td("2024-01-08") // Monday
+
+	h, _ := service.CreateHabit(database, "Run", today, false, nil)
+	_ = service.RecordWeeklyPromotion(database, today)
+
+	m := newHabitListModel(database, today)
+	if m.mode != modeNormal {
+		t.Fatalf("expected modeNormal, got %v", m.mode)
+	}
+
+	_, _ = m.Update(key('n'))
+
+	e, err := service.GetEntryForDay(database, h.ID, today)
+	if err != nil {
+		t.Fatalf("GetEntryForDay: %v", err)
+	}
+	if e == nil || e.DidIt {
+		t.Error("n key should record entry as skipped (did_it=false)")
+	}
+}
+
+func TestHabitListModel_BackfillMode_YKey_AdvancesIndex(t *testing.T) {
+	database := tuiTestDB(t)
+	today := td("2024-01-10") // Wednesday
+
+	h, _ := service.CreateHabit(database, "Run", td("2024-01-08"), false, nil)
+	_ = service.RecordEntry(database, h.ID, td("2024-01-08"), true)
+	// Gap on Jan 9 — triggers backfill
+	_ = service.RecordWeeklyPromotion(database, today)
+
+	m := newHabitListModel(database, today)
+	if m.mode != modeBackfill {
+		t.Fatalf("expected modeBackfill, got %v", m.mode)
+	}
+	if m.backfillIdx != 0 {
+		t.Fatalf("backfillIdx = %d, want 0", m.backfillIdx)
+	}
+
+	updated, _ := m.Update(key('y'))
+	hlm := updated.(HabitListModel)
+
+	if hlm.backfillIdx != 1 {
+		t.Errorf("backfillIdx = %d, want 1 after answering y", hlm.backfillIdx)
+	}
+	if hlm.mode != modeNormal {
+		t.Errorf("mode = %v, want modeNormal after exhausting backfill", hlm.mode)
+	}
+
+	// Verify DB entry was recorded
+	e, _ := service.GetEntryForDay(database, h.ID, td("2024-01-09"))
+	if e == nil || !e.DidIt {
+		t.Error("y in backfill mode should record entry as done")
+	}
+}
+
+func TestHabitListModel_BackfillMode_SKey_SkipsWithoutRecording(t *testing.T) {
+	database := tuiTestDB(t)
+	today := td("2024-01-10")
+
+	h, _ := service.CreateHabit(database, "Run", td("2024-01-08"), false, nil)
+	_ = service.RecordEntry(database, h.ID, td("2024-01-08"), true)
+	_ = service.RecordWeeklyPromotion(database, today)
+
+	m := newHabitListModel(database, today)
+	if m.mode != modeBackfill {
+		t.Fatalf("expected modeBackfill, got %v", m.mode)
+	}
+
+	updated, _ := m.Update(key('s'))
+	hlm := updated.(HabitListModel)
+
+	if hlm.backfillIdx != 1 {
+		t.Errorf("backfillIdx = %d, want 1 after skip", hlm.backfillIdx)
+	}
+	// No entry recorded
+	e, _ := service.GetEntryForDay(database, h.ID, td("2024-01-09"))
+	if e != nil {
+		t.Error("s key should not record an entry")
+	}
+}
+
+func TestHabitListModel_PromoMode_EnterKey_PromotesAndEmitsReload(t *testing.T) {
+	database := tuiTestDB(t)
+	today := td("2024-01-08") // Monday — triggers promotion check
+
+	h, _ := service.CreateHabit(database, "Run", today, false, nil)
+	// Do NOT record weekly promotion — promotion mode should trigger
+
+	m := newHabitListModel(database, today)
+	if m.mode != modePromotion {
+		t.Fatalf("expected modePromotion, got %v (non-obligated habit exists, no promotion recorded)", m.mode)
+	}
+
+	_, cmd := m.Update(keyStr("enter"))
+	msg := runCmd(cmd)
+	if _, ok := msg.(switchToHabitListMsg); !ok {
+		t.Errorf("enter in promo mode should emit switchToHabitListMsg, got %T", msg)
+	}
+
+	// Habit should now be obligated
+	got, err := service.GetHabit(database, h.ID)
+	if err != nil {
+		t.Fatalf("GetHabit: %v", err)
+	}
+	if !got.IsObligated {
+		t.Error("habit should be obligated after promotion")
+	}
+}
+
+func TestHabitListModel_PromoMode_SKey_SkipsPromotion(t *testing.T) {
+	database := tuiTestDB(t)
+	today := td("2024-01-08") // Monday
+
+	_, _ = service.CreateHabit(database, "Run", today, false, nil)
+
+	m := newHabitListModel(database, today)
+	if m.mode != modePromotion {
+		t.Fatalf("expected modePromotion, got %v", m.mode)
+	}
+
+	_, cmd := m.Update(key('s'))
+	msg := runCmd(cmd)
+	if _, ok := msg.(switchToHabitListMsg); !ok {
+		t.Errorf("s in promo mode should emit switchToHabitListMsg, got %T", msg)
+	}
+}
+
+func TestHabitListModel_View_ShowsHabitName(t *testing.T) {
+	database := tuiTestDB(t)
+	today := td("2024-01-08")
+	_, _ = service.CreateHabit(database, "Morning run", today, false, nil)
+	_ = service.RecordWeeklyPromotion(database, today)
+
+	m := newHabitListModel(database, today)
+	view := m.View()
+
+	if !strings.Contains(view, "Morning run") {
+		t.Errorf("view should contain habit name, got: %s", view)
+	}
+}
+
+func TestHabitListModel_View_NoHistory(t *testing.T) {
+	database := tuiTestDB(t)
+	today := td("2024-01-08")
+	_, _ = service.CreateHabit(database, "Walk", today, false, nil)
+	_ = service.RecordWeeklyPromotion(database, today)
+
+	m := newHabitListModel(database, today)
+	view := m.View()
+
+	if !strings.Contains(view, "no history") {
+		t.Errorf("view should show '(no history)' for habit with no entries, got: %s", view)
+	}
+}
+
 // ---- AppModel tests ----
 
-func TestAppModel_New_NoPendingBackfill_StartsAtHabitList(t *testing.T) {
+func TestAppModel_New_AlwaysStartsAtHabitList(t *testing.T) {
 	database := tuiTestDB(t)
 
 	app, err := New(database)
@@ -712,28 +638,42 @@ func TestAppModel_New_NoPendingBackfill_StartsAtHabitList(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 	if app.screen != screenHabitList {
-		t.Errorf("screen = %v, want screenHabitList when no backfill", app.screen)
+		t.Errorf("screen = %v, want screenHabitList", app.screen)
 	}
 }
 
-func TestAppModel_New_PendingBackfill_StartsAtBackfill(t *testing.T) {
+func TestAppModel_New_NoPendingState_ModeNormal(t *testing.T) {
 	database := tuiTestDB(t)
-	today := time.Now().UTC()
-	today = time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, time.UTC)
-	yesterday := today.AddDate(0, 0, -1)
-
-	h, _ := service.CreateHabit(database, "Run", yesterday.AddDate(0, 0, -1), false, nil)
-	_ = service.RecordEntry(database, h.ID, yesterday.AddDate(0, 0, -1), true)
-	// gap on yesterday — should trigger backfill
-	// Pre-record promotion so the app skips the promotion screen and lands on backfill.
-	_ = service.RecordWeeklyPromotion(database, today)
 
 	app, err := New(database)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	if app.screen != screenBackfill {
-		t.Errorf("screen = %v, want screenBackfill when pending items exist", app.screen)
+	if app.habitList.mode != modeNormal {
+		t.Errorf("habitList.mode = %v, want modeNormal when no backfill/promotion", app.habitList.mode)
+	}
+}
+
+func TestAppModel_New_PendingBackfill_ModeBackfill(t *testing.T) {
+	database := tuiTestDB(t)
+	today := time.Now().UTC()
+	today = time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, time.UTC)
+	twoDaysAgo := today.AddDate(0, 0, -2)
+
+	h, _ := service.CreateHabit(database, "Run", twoDaysAgo, false, nil)
+	_ = service.RecordEntry(database, h.ID, twoDaysAgo, true)
+	// gap on yesterday — triggers backfill
+	_ = service.RecordWeeklyPromotion(database, today) // avoid promotion mode
+
+	app, err := New(database)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if app.screen != screenHabitList {
+		t.Errorf("screen = %v, want screenHabitList", app.screen)
+	}
+	if app.habitList.mode != modeBackfill {
+		t.Errorf("habitList.mode = %v, want modeBackfill when pending backfill exists", app.habitList.mode)
 	}
 }
 
@@ -766,7 +706,7 @@ func TestAppModel_WindowSizeMsg_UpdatesDimensions(t *testing.T) {
 func TestAppModel_SwitchToHabitList_UpdatesScreen(t *testing.T) {
 	database := tuiTestDB(t)
 	app, _ := New(database)
-	app.screen = screenBackfill // force a different screen
+	app.screen = screenStats // force a different screen
 
 	updated, _ := app.Update(switchToHabitListMsg{})
 	am := updated.(AppModel)
