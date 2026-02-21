@@ -127,7 +127,7 @@ func renderHabitStats(hs model.HabitStats, today time.Time) string {
 
 		// Pad to 7 squares if week is partial.
 		for i := len(w.Days); i < 7; i++ {
-			sb.WriteString(squareGray.Render("[ ]"))
+			sb.WriteString(sqBgUnknown.Render("  ") + " ")
 		}
 
 		sb.WriteString("  ")

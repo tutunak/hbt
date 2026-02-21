@@ -11,6 +11,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // ---- helpers ----
@@ -742,46 +743,32 @@ func TestAppModel_SwitchToStats_UpdatesScreen(t *testing.T) {
 
 // ---- renderSquare tests ----
 
-func TestRenderSquare_Done_GreenSymbol(t *testing.T) {
-	date := td("2024-01-08")
-	result := renderSquare(model.DayDone, date, date)
-	if !strings.Contains(result, "■") {
-		t.Errorf("DayDone square should contain ■, got: %q", result)
-	}
-}
-
-func TestRenderSquare_Yellow_YellowSymbol(t *testing.T) {
+func TestRenderSquare_AllStates_CorrectWidth(t *testing.T) {
 	date := td("2024-01-08")
 	today := td("2024-01-09")
-	result := renderSquare(model.DayYellow, date, today)
-	if !strings.Contains(result, "▪") {
-		t.Errorf("DayYellow square should contain ▪, got: %q", result)
+	cases := []struct {
+		name   string
+		status model.DayStatus
+	}{
+		{"Done", model.DayDone},
+		{"Yellow", model.DayYellow},
+		{"Red", model.DayRed},
+		{"Future", model.DayFuture},
+		{"Unknown-past", model.DayUnknown},
+	}
+	for _, c := range cases {
+		result := renderSquare(c.status, date, today)
+		if w := lipgloss.Width(result); w != 3 {
+			t.Errorf("renderSquare(%s) visual width = %d, want 3", c.name, w)
+		}
 	}
 }
 
-func TestRenderSquare_Red_RedSymbol(t *testing.T) {
-	date := td("2024-01-08")
-	today := td("2024-01-09")
-	result := renderSquare(model.DayRed, date, today)
-	if !strings.Contains(result, "□") {
-		t.Errorf("DayRed square should contain □, got: %q", result)
-	}
-}
-
-func TestRenderSquare_Unknown_Today_QuestionMark(t *testing.T) {
+func TestRenderSquare_Unknown_Today_CorrectWidth(t *testing.T) {
 	today := td("2024-01-08")
 	result := renderSquare(model.DayUnknown, today, today)
-	if !strings.Contains(result, "?") {
-		t.Errorf("DayUnknown for today should contain ?, got: %q", result)
-	}
-}
-
-func TestRenderSquare_Unknown_PastDate_EmptyBrackets(t *testing.T) {
-	date := td("2024-01-07")
-	today := td("2024-01-08")
-	result := renderSquare(model.DayUnknown, date, today)
-	if !strings.Contains(result, "[ ]") {
-		t.Errorf("DayUnknown for past date should contain '[ ]', got: %q", result)
+	if w := lipgloss.Width(result); w != 3 {
+		t.Errorf("renderSquare(Unknown/today) visual width = %d, want 3", w)
 	}
 }
 

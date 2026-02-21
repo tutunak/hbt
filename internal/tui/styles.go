@@ -54,21 +54,11 @@ var (
 	styleDate = lipgloss.NewStyle().
 			Foreground(colorYellow)
 
-	// Day square styles
-	squareDone = lipgloss.NewStyle().
-			Foreground(colorGreen).
-			Bold(true)
-
-	squareYellow = lipgloss.NewStyle().
-			Foreground(colorYellow).
-			Bold(true)
-
-	squareRed = lipgloss.NewStyle().
-			Foreground(colorRed).
-			Bold(true)
-
-	squareGray = lipgloss.NewStyle().
-			Foreground(colorGray)
+	// Day square background styles — rendered as solid 2-space colour blocks.
+	sqBgDone    = lipgloss.NewStyle().Background(colorGreen)
+	sqBgYellow  = lipgloss.NewStyle().Background(colorYellow)
+	sqBgRed     = lipgloss.NewStyle().Background(colorRed)
+	sqBgUnknown = lipgloss.NewStyle().Background(colorGray)
 
 	styleWeekRate = lipgloss.NewStyle().
 			Foreground(colorDim)
@@ -86,21 +76,21 @@ var (
 	styleBanner = lipgloss.NewStyle().Foreground(colorAccent).Bold(true)
 )
 
+// renderSquare returns a 3-char-wide visual slot: 2-space background colour block + 1 space separator.
 func renderSquare(status model.DayStatus, date, today time.Time) string {
+	const blk = "  " // solid 2-space block (background colour fills it)
+	const sep = " "  // plain space separator between squares
 	switch status {
 	case model.DayDone:
-		return squareDone.Render("[■]")
+		return sqBgDone.Render(blk) + sep
 	case model.DayYellow:
-		return squareYellow.Render("[▪]")
+		return sqBgYellow.Render(blk) + sep
 	case model.DayRed:
-		return squareRed.Render("[□]")
+		return sqBgRed.Render(blk) + sep
 	case model.DayFuture:
-		return squareGray.Render("   ")
-	default: // DayUnknown
-		if date.Equal(today) {
-			return squareGray.Render("[?]")
-		}
-		return squareGray.Render("[ ]")
+		return "   " // 3 plain spaces, no colour
+	default: // DayUnknown (past gaps and today not yet tracked)
+		return sqBgUnknown.Render(blk) + sep
 	}
 }
 
