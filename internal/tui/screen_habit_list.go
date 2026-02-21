@@ -306,23 +306,21 @@ func (m HabitListModel) renderBackfillBanner() string {
 func (m HabitListModel) renderHabitRow(idx int, h model.Habit, maxNameLen int) string {
 	isSelected := idx == m.cursor && m.mode == modeNormal
 
+	// Emoji indicator left of name: ✅ obligated, ⬜ non-obligated.
+	emoji := "⬜"
+	if h.IsObligated {
+		emoji = "✅"
+	}
+
 	// Pad name to maxNameLen so every row's stats start at the same column.
 	name := h.Name
 	paddedName := name + strings.Repeat(" ", maxNameLen-len(name))
 
 	var namePart string
 	if isSelected {
-		namePart = lipgloss.NewStyle().Foreground(colorAccent).Render("> ") + styleSelected.Render(paddedName)
+		namePart = lipgloss.NewStyle().Foreground(colorAccent).Render("> ") + emoji + " " + styleSelected.Render(paddedName)
 	} else {
-		namePart = "  " + styleNormal.Render(paddedName)
-	}
-
-	// OBL badge (7 chars including surrounding spaces to keep column alignment)
-	var oblPart string
-	if h.IsObligated {
-		oblPart = "  " + styleOblBadge.Render("[OBL]")
-	} else {
-		oblPart = "       "
+		namePart = "  " + emoji + " " + styleNormal.Render(paddedName)
 	}
 
 	// Stat squares or status message
@@ -363,5 +361,5 @@ func (m HabitListModel) renderHabitRow(idx int, h model.Habit, maxNameLen int) s
 		}
 	}
 
-	return namePart + oblPart + statPart
+	return namePart + statPart
 }
