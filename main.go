@@ -3,10 +3,9 @@ package main
 import (
 	"fmt"
 	"hbt/internal/db"
-	"hbt/internal/tui"
+	"hbt/internal/web"
+	"net/http"
 	"os"
-
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 func main() {
@@ -18,15 +17,21 @@ func main() {
 	}
 	defer database.Close()
 
-	app, err := tui.New(database)
+	srv, err := web.NewServer(database)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error initializing app: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error initializing server: %v\n", err)
 		os.Exit(1)
 	}
 
-	p := tea.NewProgram(app, tea.WithAltScreen())
-	if _, err := p.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error running app: %v\n", err)
+	port := os.Getenv("HBT_PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	addr := ":" + port
+	fmt.Printf("hbt listening on http://localhost%s\n", addr)
+	if err := http.ListenAndServe(addr, srv); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 }

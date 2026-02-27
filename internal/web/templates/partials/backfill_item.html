@@ -1,0 +1,18 @@
+{{define "backfill_item"}}
+<div class="banner" id="backfill-item">
+    <div class="banner-title">BACKFILL ({{.Idx}} of {{.Total}})</div>
+    <div class="backfill-question">
+        Did you do <strong>{{.HabitName}}</strong> on <span class="backfill-date">{{.DateStr}}</span>?
+    </div>
+    <div class="backfill-actions">
+        <button class="btn btn-green"
+                hx-post="/backfill/{{.HabitID}}/{{fmtDate .Date}}"
+                hx-target="#backfill-banner"
+                hx-swap="innerHTML">Yes</button>
+        <button class="btn btn-red"
+                hx-post="/backfill/skip/{{.HabitID}}/{{fmtDate .Date}}"
+                hx-target="#backfill-banner"
+                hx-swap="innerHTML">No</button>
+    </div>
+</div>
+{{end}}

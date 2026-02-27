@@ -1,0 +1,27 @@
+{{define "habit_row"}}
+<div class="habit-row" id="habit-{{.Habit.ID}}">
+    <span class="habit-emoji">{{obligatedEmoji .Habit}}</span>
+    <span class="habit-name">{{.Habit.Name}}</span>
+    {{if .Inactive}}
+        <span class="habit-status">{{.InactiveMsg}}</span>
+    {{else if not .HasHistory}}
+        <span class="habit-status">(no history)</span>
+    {{else}}
+        <span class="habit-squares">
+            {{range .Squares}}{{if .WeekSep}}<span class="week-sep"></span>{{end}}<span class="sq {{squareClass .Status}}" title="{{fmtDateHuman .Date}}"></span>{{end}}
+        </span>
+        <span class="habit-rate">{{.RateStr}}</span>
+    {{end}}
+    <span class="habit-actions">
+        <button class="btn btn-green"
+                hx-post="/habits/{{.Habit.ID}}/entry?did_it=true"
+                hx-target="#habit-{{.Habit.ID}}"
+                hx-swap="outerHTML">Done</button>
+        <button class="btn btn-red"
+                hx-post="/habits/{{.Habit.ID}}/entry?did_it=false"
+                hx-target="#habit-{{.Habit.ID}}"
+                hx-swap="outerHTML">Skip</button>
+        <a href="/habits/{{.Habit.ID}}/archive" class="btn btn-skip">Archive</a>
+    </span>
+</div>
+{{end}}

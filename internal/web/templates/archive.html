@@ -1,0 +1,23 @@
+{{define "content"}}
+<div class="header">
+    <h1>Archive Habit</h1>
+    <a href="/">&#8592; Back</a>
+</div>
+
+<div class="archive-warning">
+    Are you sure you want to archive <strong>{{.Habit.Name}}</strong>?
+    Archived habits are hidden from the main list and stop tracking.
+</div>
+
+<form method="POST" action="/habits/{{.Habit.ID}}/archive">
+    <div class="form-group">
+        <label for="comment">Comment (optional)</label>
+        <input type="text" id="comment" name="comment" placeholder="Reason for archiving...">
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-red">Archive</button>
+        <a href="/" class="btn">Cancel</a>
+    </div>
+</form>
+{{end}}

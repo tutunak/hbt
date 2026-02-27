@@ -1,0 +1,40 @@
+{{define "content"}}
+<div class="header">
+    <h1>Add Habit</h1>
+    <a href="/">&#8592; Back</a>
+</div>
+
+{{if .Error}}
+<div class="form-error">{{.Error}}</div>
+{{end}}
+
+<form method="POST" action="/habits">
+    <div class="form-group">
+        <label for="name">Habit Name</label>
+        <input type="text" id="name" name="name" value="{{.Name}}" placeholder="e.g. Exercise" autofocus required>
+    </div>
+
+    <div class="form-group">
+        <label for="start_date">Start Date</label>
+        <input type="date" id="start_date" name="start_date" value="{{.Date}}">
+    </div>
+
+    <div class="form-group">
+        <label class="checkbox-label">
+            <input type="checkbox" id="is_obligated" name="is_obligated" value="1"
+                   onchange="document.getElementById('since-group').style.display = this.checked ? 'block' : 'none'">
+            Obligated (strict skip tracking)
+        </label>
+    </div>
+
+    <div class="form-group" id="since-group" style="display:none;">
+        <label for="obligated_since">Obligated Since</label>
+        <input type="date" id="obligated_since" name="obligated_since" value="{{.Date}}">
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-accent">Create Habit</button>
+        <a href="/" class="btn">Cancel</a>
+    </div>
+</form>
+{{end}}

@@ -1,0 +1,43 @@
+{{define "content"}}
+<div class="header">
+    <h1>Statistics</h1>
+    <a href="/">&#8592; Back</a>
+</div>
+
+{{if not .HasHabits}}
+<div class="empty">No habits to show statistics for.</div>
+{{else}}
+    {{range .HabitStats}}
+    <div class="stats-habit">
+        <div class="stats-habit-name">
+            {{.Habit.Name}}
+            {{if .Habit.IsObligated}}<span class="obl-badge">[OBL]</span>{{end}}
+        </div>
+        {{if not .Weeks}}
+        <div class="stats-overall" style="color: var(--dim);">No data yet.</div>
+        {{else}}
+            {{range .Weeks}}
+            <div class="stats-week">
+                <span class="stats-week-label">{{fmtWeekRange .WeekStart}}</span>
+                <span class="stats-week-squares">
+                    {{range .Days}}<span class="sq {{squareClass .Status}}" title="{{fmtDateHuman .Date}}"></span>{{end}}
+                    {{$pad := sub 7 (len .Days)}}{{range seq $pad}}<span class="sq sq-gray"></span>{{end}}
+                </span>
+                <span class="stats-week-rate">
+                    {{if ge .SuccessRate 0.0}}{{.GreenCount}}/{{add .GreenCount .RedCount}} ({{fmtPct .SuccessRate}}){{else}}(no data){{end}}
+                </span>
+            </div>
+            {{end}}
+            <div class="stats-overall">
+                Overall: {{if ge .GlobalRate 0.0}}<span class="rate">{{fmtPct .GlobalRate}}</span>{{else}}no data{{end}}
+            </div>
+        {{end}}
+    </div>
+    <hr class="separator">
+    {{end}}
+
+    <div id="global-stats">
+        {{template "global_stats" .GlobalStats}}
+    </div>
+{{end}}
+{{end}}

@@ -1,0 +1,14 @@
+{{define "global_stats"}}
+<div class="global-stats" id="global-stats-inner">
+    {{if ge .AverageRate 0.0}}
+    <span class="rate">Global avg: {{fmtPct .AverageRate}}</span>
+    <span class="counts">
+        (<span class="count-green">{{.TotalGreen}}</span> /
+         <span class="count-yellow">{{.TotalYellow}}</span> /
+         <span class="count-red">{{.TotalRed}}</span>)
+    </span>
+    {{else}}
+    <span class="rate">Global avg: no data yet</span>
+    {{end}}
+</div>
+{{end}}

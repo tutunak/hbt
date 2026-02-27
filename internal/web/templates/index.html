@@ -1,0 +1,64 @@
+{{define "content"}}
+<div class="header">
+    <h1>Habit Tracker</h1>
+    <span class="date">{{.DateStr}}</span>
+</div>
+
+<div class="nav">
+    <a href="/habits/new">+ Add Habit</a>
+    <a href="/stats">Statistics</a>
+</div>
+
+{{if and .NonObligatedCount (lt .NonObligatedCount 4)}}
+<div class="banner banner-warning">
+    <div class="banner-title">&#9888; Only {{.NonObligatedCount}} non-obligated habit(s). Consider adding more.</div>
+</div>
+{{end}}
+
+{{if .NeedPromotion}}
+<div class="banner" id="promotion-banner">
+    <div class="banner-title">WEEKLY PROMOTION</div>
+    <form method="POST" action="/promotion/0">
+        <ul class="promo-list">
+            {{range .PromoHabits}}
+            <li>
+                <label>
+                    <input type="radio" name="habit_id" value="{{.ID}}">
+                    {{.Name}}
+                    <span class="promo-since">since {{fmtDateHuman .StartDate}}</span>
+                </label>
+            </li>
+            {{end}}
+        </ul>
+        <div class="promo-actions">
+            <button type="submit" class="btn btn-accent">Promote</button>
+            <button type="submit" formaction="/promotion/skip" class="btn btn-skip">Skip This Week</button>
+        </div>
+    </form>
+</div>
+{{end}}
+
+{{if .BackfillItem}}
+<div id="backfill-banner">
+    {{template "backfill_item" .BackfillItem}}
+</div>
+{{end}}
+
+<hr class="separator">
+
+<div class="habit-list" id="habit-list">
+    {{if not .HasHabits}}
+    <div class="empty">No habits yet. <a href="/habits/new">Add your first habit</a>.</div>
+    {{else}}
+        {{range .Habits}}
+        {{template "habit_row" .}}
+        {{end}}
+    {{end}}
+</div>
+
+<hr class="separator">
+
+<div id="global-stats">
+    {{template "global_stats" .GlobalStats}}
+</div>
+{{end}}
