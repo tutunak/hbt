@@ -39,8 +39,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /habits/{id}/entry", s.handleRecordEntry)
 	s.mux.HandleFunc("POST /backfill/{habitID}/{date}", s.handleBackfillAnswer)
 	s.mux.HandleFunc("POST /backfill/skip/{habitID}/{date}", s.handleBackfillSkip)
-	s.mux.HandleFunc("POST /promotion/{id}", s.handlePromote)
+	s.mux.HandleFunc("GET /promotion/{id}/confirm", s.handlePromotionConfirm)
+	s.mux.HandleFunc("POST /promotion/{id}/confirm", s.handlePromote)
 	s.mux.HandleFunc("POST /promotion/skip", s.handleSkipPromotion)
+	s.mux.HandleFunc("GET /archived", s.handleArchived)
 
 	// Static files
 	staticFS, _ := fs.Sub(content, "static")

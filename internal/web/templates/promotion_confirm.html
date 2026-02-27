@@ -1,0 +1,18 @@
+{{define "content"}}
+<div class="header">
+    <h1>Promote Habit</h1>
+    <a href="/">&#8592; Back</a>
+</div>
+
+<div class="archive-warning">
+    Are you sure you want to make <strong>{{.Habit.Name}}</strong> obligated?
+    Strict skip tracking will apply from today — 2+ consecutive skips will count as red.
+</div>
+
+<form method="POST" action="/promotion/{{.Habit.ID}}/confirm">
+    <div class="form-actions">
+        <button type="submit" class="btn btn-accent">Confirm Promotion</button>
+        <a href="/" class="btn">Cancel</a>
+    </div>
+</form>
+{{end}}

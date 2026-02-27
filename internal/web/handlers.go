@@ -232,28 +232,36 @@ func (s *Server) renderNextBackfill(w http.ResponseWriter, td time.Time) {
 	s.tmpl.backfill.ExecuteTemplate(w, "backfill_item", bf)
 }
 
+func (s *Server) handlePromotionConfirm(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", 400)
+		return
+	}
+
+	h, err := service.GetHabit(s.db, id)
+	if err != nil {
+		http.Error(w, err.Error(), 404)
+		return
+	}
+
+	data := promoConfirmData{Habit: h}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	s.tmpl.promoConfirm.ExecuteTemplate(w, "layout", data)
+}
+
 func (s *Server) handlePromote(w http.ResponseWriter, r *http.Request) {
 	td := today()
 
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, err.Error(), 400)
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", 400)
 		return
 	}
 
-	habitIDStr := r.FormValue("habit_id")
-	if habitIDStr != "" {
-		habitID, err := strconv.ParseInt(habitIDStr, 10, 64)
-		if err == nil {
-			service.SetObligated(s.db, habitID, true, td)
-		}
-	}
-
+	service.SetObligated(s.db, id, true, td)
 	service.RecordWeeklyPromotion(s.db, td)
 
-	if r.Header.Get("HX-Request") == "true" {
-		w.Header().Set("HX-Redirect", "/")
-		return
-	}
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
@@ -362,6 +370,36 @@ func (s *Server) handleArchiveHabit(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
+func (s *Server) handleArchived(w http.ResponseWriter, r *http.Request) {
+	td := today()
+
+	habits, err := service.ListHabits(s.db, true)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	var archived []archivedHabitData
+	for _, h := range habits {
+		if !h.Archived {
+			continue
+		}
+		entries, _ := service.GetEntriesForHabit(s.db, h.ID)
+		hs := service.ComputeWeekStats(h, entries, td)
+		archived = append(archived, archivedHabitData{Habit: h, Stats: hs})
+	}
+
+	data := archivedData{
+		Habits:    archived,
+		HasHabits: len(archived) > 0,
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := s.tmpl.archivedList.ExecuteTemplate(w, "layout", data); err != nil {
+		http.Error(w, err.Error(), 500)
+	}
+}
+
 func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 	td := today()
 
@@ -371,11 +409,32 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var allStats []model.HabitStats
+	var allStats []habitStatsWithChart
 	for _, h := range habits {
 		entries, _ := service.GetEntriesForHabit(s.db, h.ID)
 		hs := service.ComputeWeekStats(h, entries, td)
-		allStats = append(allStats, hs)
+
+		// Build chart data from last 12 weeks (or fewer)
+		cd := chartData{}
+		start := 0
+		if len(hs.Weeks) > 12 {
+			start = len(hs.Weeks) - 12
+		}
+		for _, w := range hs.Weeks[start:] {
+			end := w.WeekStart.AddDate(0, 0, 6)
+			label := w.WeekStart.Format("Jan 2") + "–" + end.Format("Jan 2")
+			cd.Labels = append(cd.Labels, label)
+			if w.SuccessRate >= 0 {
+				cd.Values = append(cd.Values, w.SuccessRate*100)
+			} else {
+				cd.Values = append(cd.Values, 0)
+			}
+		}
+
+		allStats = append(allStats, habitStatsWithChart{
+			HabitStats: hs,
+			Chart:      cd,
+		})
 	}
 
 	gs, _ := service.ComputeGlobalStats(s.db, td)

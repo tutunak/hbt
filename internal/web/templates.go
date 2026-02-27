@@ -2,6 +2,7 @@ package web
 
 import (
 	"embed"
+	"encoding/json"
 	"fmt"
 	"hbt/internal/model"
 	"html/template"
@@ -12,13 +13,15 @@ import (
 var content embed.FS
 
 type templateSet struct {
-	index      *template.Template
-	stats      *template.Template
-	addHabit   *template.Template
-	archive    *template.Template
-	habitRow   *template.Template
-	backfill   *template.Template
-	globalLine *template.Template
+	index        *template.Template
+	stats        *template.Template
+	addHabit     *template.Template
+	archive      *template.Template
+	promoConfirm *template.Template
+	archivedList *template.Template
+	habitRow     *template.Template
+	backfill     *template.Template
+	globalLine   *template.Template
 }
 
 func squareClass(status model.DayStatus) string {
@@ -79,6 +82,10 @@ func loadTemplates() (*templateSet, error) {
 		"add": func(a, b int) int {
 			return a + b
 		},
+		"toJSON": func(v interface{}) template.JS {
+			b, _ := json.Marshal(v)
+			return template.JS(b)
+		},
 	}
 
 	parse := func(files ...string) (*template.Template, error) {
@@ -110,6 +117,16 @@ func loadTemplates() (*templateSet, error) {
 		return nil, fmt.Errorf("parse archive: %w", err)
 	}
 
+	promoConfirm, err := parse(layout, "templates/promotion_confirm.html")
+	if err != nil {
+		return nil, fmt.Errorf("parse promotion_confirm: %w", err)
+	}
+
+	archivedList, err := parse(layout, "templates/archived_list.html")
+	if err != nil {
+		return nil, fmt.Errorf("parse archived_list: %w", err)
+	}
+
 	habitRow, err := parse("templates/partials/habit_row.html", "templates/partials/global_stats.html")
 	if err != nil {
 		return nil, fmt.Errorf("parse habit_row partial: %w", err)
@@ -126,13 +143,15 @@ func loadTemplates() (*templateSet, error) {
 	}
 
 	return &templateSet{
-		index:      index,
-		stats:      stats,
-		addHabit:   addHabit,
-		archive:    archive,
-		habitRow:   habitRow,
-		backfill:   backfill,
-		globalLine: globalLine,
+		index:        index,
+		stats:        stats,
+		addHabit:     addHabit,
+		archive:      archive,
+		promoConfirm: promoConfirm,
+		archivedList: archivedList,
+		habitRow:     habitRow,
+		backfill:     backfill,
+		globalLine:   globalLine,
 	}, nil
 }
 
@@ -178,9 +197,14 @@ type backfillData struct {
 	Total     int
 }
 
+type habitStatsWithChart struct {
+	model.HabitStats
+	Chart chartData
+}
+
 type statsData struct {
 	Today       time.Time
-	HabitStats  []model.HabitStats
+	HabitStats  []habitStatsWithChart
 	GlobalStats model.GlobalStats
 	HasHabits   bool
 }
@@ -193,4 +217,23 @@ type addHabitData struct {
 
 type archiveData struct {
 	Habit model.Habit
+}
+
+type promoConfirmData struct {
+	Habit model.Habit
+}
+
+type archivedHabitData struct {
+	Habit model.Habit
+	Stats model.HabitStats
+}
+
+type archivedData struct {
+	Habits    []archivedHabitData
+	HasHabits bool
+}
+
+type chartData struct {
+	Labels []string
+	Values []float64
 }

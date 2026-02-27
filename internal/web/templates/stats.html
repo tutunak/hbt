@@ -31,6 +31,75 @@
             <div class="stats-overall">
                 Overall: {{if ge .GlobalRate 0.0}}<span class="rate">{{fmtPct .GlobalRate}}</span>{{else}}no data{{end}}
             </div>
+            {{if .Chart.Labels}}
+            <div class="chart-container">
+                <canvas id="chart-{{.Habit.ID}}"></canvas>
+            </div>
+            <script>
+            (function(){
+                var labels = {{toJSON .Chart.Labels}};
+                var values = {{toJSON .Chart.Values}};
+                var ctx = document.getElementById('chart-{{.Habit.ID}}');
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                type: 'bar',
+                                label: 'Weekly Rate',
+                                data: values,
+                                backgroundColor: 'rgba(34, 197, 94, 0.6)',
+                                borderColor: 'rgba(34, 197, 94, 0.8)',
+                                borderWidth: 1,
+                                borderRadius: 3,
+                                order: 2
+                            },
+                            {
+                                type: 'line',
+                                label: 'Trend',
+                                data: values,
+                                borderColor: '#A78BFA',
+                                backgroundColor: 'rgba(167, 139, 250, 0.1)',
+                                borderWidth: 2,
+                                pointRadius: 3,
+                                pointBackgroundColor: '#A78BFA',
+                                tension: 0.3,
+                                fill: false,
+                                order: 1
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false }
+                        },
+                        scales: {
+                            y: {
+                                min: 0, max: 100,
+                                ticks: {
+                                    color: '#9CA3AF',
+                                    callback: function(v){ return v + '%'; },
+                                    font: { family: "'Menlo','Monaco','Cascadia Code','Courier New',monospace", size: 11 }
+                                },
+                                grid: { color: '#2a3a5e' }
+                            },
+                            x: {
+                                ticks: {
+                                    color: '#9CA3AF',
+                                    maxRotation: 45,
+                                    font: { family: "'Menlo','Monaco','Cascadia Code','Courier New',monospace", size: 10 }
+                                },
+                                grid: { display: false }
+                            }
+                        }
+                    }
+                });
+            })();
+            </script>
+            {{end}}
         {{end}}
     </div>
     <hr class="separator">

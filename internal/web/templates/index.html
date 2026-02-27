@@ -7,6 +7,7 @@
 <div class="nav">
     <a href="/habits/new">+ Add Habit</a>
     <a href="/stats">Statistics</a>
+    <a href="/archived">Archived</a>
 </div>
 
 {{if and .NonObligatedCount (lt .NonObligatedCount 4)}}
@@ -18,7 +19,7 @@
 {{if .NeedPromotion}}
 <div class="banner" id="promotion-banner">
     <div class="banner-title">WEEKLY PROMOTION</div>
-    <form method="POST" action="/promotion/0">
+    <form id="promo-form" onsubmit="return promoNavigate(event)">
         <ul class="promo-list">
             {{range .PromoHabits}}
             <li>
@@ -32,9 +33,22 @@
         </ul>
         <div class="promo-actions">
             <button type="submit" class="btn btn-accent">Promote</button>
-            <button type="submit" formaction="/promotion/skip" class="btn btn-skip">Skip This Week</button>
+            <button type="button" class="btn btn-skip" onclick="promoSkip()">Skip This Week</button>
         </div>
     </form>
+    <form id="promo-skip-form" method="POST" action="/promotion/skip" style="display:none;"></form>
+    <script>
+    function promoNavigate(e) {
+        e.preventDefault();
+        var sel = document.querySelector('input[name="habit_id"]:checked');
+        if (!sel) { alert("Select a habit to promote."); return false; }
+        window.location.href = "/promotion/" + sel.value + "/confirm";
+        return false;
+    }
+    function promoSkip() {
+        document.getElementById("promo-skip-form").submit();
+    }
+    </script>
 </div>
 {{end}}
 

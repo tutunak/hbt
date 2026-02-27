@@ -284,9 +284,7 @@ func TestPromote_SetsObligated(t *testing.T) {
 
 	h, _ := service.CreateHabit(database, "Piano", d("2025-01-06"), false, nil)
 
-	form := url.Values{"habit_id": {itoa(h.ID)}}
-	req := httptest.NewRequest("POST", "/promotion/0", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req := httptest.NewRequest("POST", "/promotion/"+itoa(h.ID)+"/confirm", nil)
 	w := httptest.NewRecorder()
 	srv.ServeHTTP(w, req)
 
@@ -571,6 +569,71 @@ func TestArchiveForm_ShowsHabitName(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), "Cooking") {
 		t.Error("expected habit name in archive form")
+	}
+}
+
+// --- Promotion confirm tests ---
+
+func TestPromotionConfirm_ShowsHabitName(t *testing.T) {
+	database := openTestDB(t)
+	srv := newTestServer(t, database)
+
+	h, _ := service.CreateHabit(database, "Drawing", d("2025-01-06"), false, nil)
+
+	req := httptest.NewRequest("GET", "/promotion/"+itoa(h.ID)+"/confirm", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "Drawing") {
+		t.Error("expected habit name in promotion confirm page")
+	}
+	if !strings.Contains(body, "Confirm Promotion") {
+		t.Error("expected 'Confirm Promotion' button")
+	}
+}
+
+// --- Archived page tests ---
+
+func TestArchived_EmptyState(t *testing.T) {
+	database := openTestDB(t)
+	srv := newTestServer(t, database)
+
+	req := httptest.NewRequest("GET", "/archived", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "No archived habits") {
+		t.Error("expected 'No archived habits' message")
+	}
+}
+
+func TestArchived_ShowsArchivedHabit(t *testing.T) {
+	database := openTestDB(t)
+	srv := newTestServer(t, database)
+
+	h, _ := service.CreateHabit(database, "Walking", d("2025-01-06"), true, nil)
+	service.ArchiveHabit(database, h.ID, "no time")
+
+	req := httptest.NewRequest("GET", "/archived", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "Walking") {
+		t.Error("expected archived habit name")
+	}
+	if !strings.Contains(body, "no time") {
+		t.Error("expected archive comment")
 	}
 }
 
