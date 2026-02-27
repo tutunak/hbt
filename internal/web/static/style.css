@@ -30,7 +30,7 @@ body {
 }
 
 .container {
-    max-width: 900px;
+    max-width: 1200px;
     margin: 0 auto;
     padding: 20px;
 }
@@ -192,30 +192,30 @@ a:hover {
     margin-bottom: 4px;
 }
 .habit-row {
-    display: flex;
+    display: grid;
+    grid-template-columns: 24px 180px 1fr auto auto;
     align-items: center;
+    gap: 10px;
     padding: 8px 10px;
     border-radius: 4px;
-    gap: 10px;
 }
 .habit-row:hover {
     background: var(--surface);
 }
 .habit-emoji {
     font-size: 14px;
-    flex-shrink: 0;
 }
 .habit-name {
     color: var(--white);
     font-weight: bold;
-    min-width: 140px;
-    flex-shrink: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 .habit-squares {
     display: flex;
     align-items: center;
     gap: 2px;
-    flex-shrink: 0;
 }
 .week-sep {
     width: 6px;
@@ -224,17 +224,15 @@ a:hover {
     color: var(--dim);
     font-size: 12px;
     white-space: nowrap;
-    margin-left: 8px;
 }
 .habit-actions {
     display: flex;
     gap: 6px;
-    margin-left: auto;
-    flex-shrink: 0;
 }
 .habit-status {
     color: var(--dim);
     font-size: 12px;
+    grid-column: 3 / 5;
 }
 
 /* Day squares */
@@ -392,12 +390,19 @@ a:hover {
     .container {
         padding: 12px;
     }
+    .habit-row {
+        display: flex;
+        flex-wrap: wrap;
+    }
     .habit-name {
         min-width: 100px;
         font-size: 13px;
     }
-    .habit-row {
-        flex-wrap: wrap;
+    .habit-status {
+        grid-column: auto;
+    }
+    .habit-actions {
+        margin-left: auto;
     }
     .form-group input[type="text"],
     .form-group input[type="date"] {
