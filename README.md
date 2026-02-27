@@ -1,6 +1,6 @@
 # hbt — Habit Tracker
 
-A terminal habit tracker with a color-coded calendar view, backfill support, and weekly obligation reviews.
+A web-based habit tracker with color-coded calendar squares, backfill support, weekly obligation reviews, and per-habit statistics charts.
 
 ## Install
 
@@ -14,11 +14,13 @@ Or build locally:
 go build -o hbt .
 ```
 
-Data is stored at `~/.local/share/hbt/hbt.db` (XDG).
+Single binary — templates and static assets are embedded. Data is stored at `~/.local/share/hbt/hbt.db` (XDG).
 
 ## Usage
 
-Run `hbt` to open the TUI. The main screen shows each habit with 3 rolling weeks of colored squares:
+Run `hbt` to start the web server on port `8080` (override with `HBT_PORT` env var). Open `http://localhost:8080` in your browser.
+
+The main screen shows each habit with 3 rolling weeks of colored squares:
 
 ```
   ✅ Morning run     ■ ■ ■  ■ □ ■ ■  ■ ■ ■   20/21 (95%)
@@ -31,25 +33,15 @@ Run `hbt` to open the TUI. The main screen shows each habit with 3 rolling weeks
 - Red `□` — two or more consecutive skips
 - Gray — no entry recorded
 
-**Normal mode keys:**
+## Features
 
-| Key | Action |
-|-----|--------|
-| `↑` / `k`, `↓` / `j` | Navigate habits |
-| `y` | Record today as done |
-| `n` | Record today as skipped |
-| `a` | Add a new habit |
-| `s` | Open statistics view |
-| `r` | Archive selected habit |
-| `q` | Quit |
+**Backfill** — if you have unrecorded days in the past, a banner appears on the main page asking you to fill them in one by one.
 
-## Screens
+**Weekly promotion** — each Monday, a banner prompts you to promote one non-obligated habit to obligated. Selecting a habit takes you to a confirmation page before applying the change. You can also skip the week.
 
-**Backfill** — on startup, if you have unrecorded days in the past, hbt asks you to fill them in. Use `y` / `n` to answer, `s` to skip a question.
+**Statistics** — per-habit breakdown by week with colored squares, success rates, and bar+line charts showing weekly trends (powered by Chart.js). A global average for obligated habits is shown at the bottom.
 
-**Weekly promotion** — each Monday, hbt prompts you to promote one non-obligated habit (`⬜`) to obligated (`✅`). Use `↑`/`↓` to select, `enter` to promote, `s` to skip the week.
-
-**Statistics** — scrollable per-habit breakdown by week with a global average for obligated habits only.
+**Archived habits** — archived habits are hidden from the main list. Visit the "Archived" page from the nav bar to view them with their full stats history and archive comments.
 
 ## Habits: Obligated vs Non-Obligated
 
