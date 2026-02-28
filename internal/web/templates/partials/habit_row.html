@@ -1,43 +1,33 @@
 {{define "habit_row"}}
-<div class="habit-row" id="habit-{{.Habit.ID}}">
+<tr class="habit-row" id="habit-{{.Habit.ID}}">
+  <td class="col-name">
     <span class="habit-emoji">{{obligatedEmoji .Habit}}</span>
     <span class="habit-name">{{.Habit.Name}}</span>
-    {{if .Inactive}}
-        <span class="habit-status">{{.InactiveMsg}}</span>
-    {{else if not .HasHistory}}
-        <span class="habit-status">(no history)</span>
-    {{else}}
-        <span class="habit-squares">
-            {{range .Squares}}
-                {{if .WeekSep}}<span class="week-sep"></span>{{end}}
-                {{if isDayFuture .Status}}
-                    <span class="sq sq-future" title="{{fmtDateHuman .Date}}"></span>
-                {{else if .IsToday}}
-                    <span class="sq {{squareClass .Status}} sq-clickable"
-                          hx-post="/habits/{{$.Habit.ID}}/entry/toggle?date={{fmtDate .Date}}"
-                          hx-target="#habit-{{$.Habit.ID}}"
-                          hx-swap="outerHTML"
-                          title="{{fmtDateHuman .Date}} (today)"></span>
-                {{else if hasEntry .Status}}
-                    <span class="sq {{squareClass .Status}} sq-clickable"
-                          hx-post="/habits/{{$.Habit.ID}}/entry/toggle?date={{fmtDate .Date}}"
-                          hx-confirm="Change entry for {{fmtDateHuman .Date}}?"
-                          hx-target="#habit-{{$.Habit.ID}}"
-                          hx-swap="outerHTML"
-                          title="{{fmtDateHuman .Date}}"></span>
-                {{else}}
-                    <span class="sq {{squareClass .Status}} sq-clickable"
-                          hx-post="/habits/{{$.Habit.ID}}/entry/toggle?date={{fmtDate .Date}}"
-                          hx-target="#habit-{{$.Habit.ID}}"
-                          hx-swap="outerHTML"
-                          title="{{fmtDateHuman .Date}}"></span>
-                {{end}}
-            {{end}}
-        </span>
-        <span class="habit-rate">{{.RateStr}}</span>
+    <a href="/habits/{{.Habit.ID}}/archive" class="archive-link" title="Archive">×</a>
+  </td>
+  {{if or .Inactive (not .HasHistory)}}
+    <td colspan="{{.MonthDayCols}}" class="habit-status col-status">
+      {{if .Inactive}}{{.InactiveMsg}}{{else}}(no history){{end}}
+    </td>
+    <td colspan="2"></td>
+  {{else}}
+    {{range .MonthSquares}}
+    <td class="sq-cell {{squareClass .Status}}{{if .IsToday}} sq-today{{end}}"
+        {{if not (isDayFuture .Status)}}
+        hx-post="/habits/{{$.Habit.ID}}/entry/toggle?date={{fmtDate .Date}}"
+        hx-target="#habit-{{$.Habit.ID}}"
+        hx-swap="outerHTML"
+        {{if and (hasEntry .Status) (not .IsToday)}}hx-confirm="Change entry for {{fmtDateHuman .Date}}?"{{end}}
+        title="{{fmtDateHuman .Date}}{{if .IsToday}} (today){{end}}"
+        {{end}}></td>
     {{end}}
-    <span class="habit-actions">
-        <a href="/habits/{{.Habit.ID}}/archive" class="btn btn-skip">Archive</a>
-    </span>
-</div>
+    <td class="col-done">{{.MonthGreen}}/{{add .MonthGreen .MonthRed}}</td>
+    <td class="col-progress">
+      {{if gt (add .MonthGreen .MonthRed) 0}}
+      <div class="prog-bar-wrap"><div class="prog-bar-fill" style="width:{{fmtPct .MonthRate}}"></div></div>
+      <span class="prog-pct">{{fmtPct .MonthRate}}</span>
+      {{else}}—{{end}}
+    </td>
+  {{end}}
+</tr>
 {{end}}

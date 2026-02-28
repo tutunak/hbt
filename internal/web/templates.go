@@ -90,6 +90,7 @@ func loadTemplates() (*templateSet, error) {
 		"hasEntry": func(s model.DayStatus) bool {
 			return s == model.DayDone || s == model.DayYellow || s == model.DayRed
 		},
+		"dayCount": func(wg weekGroup) int { return len(wg.Days) },
 	}
 
 	parse := func(files ...string) (*template.Template, error) {
@@ -173,17 +174,20 @@ type indexData struct {
 	BackfillIdx       int
 	NonObligatedCount int
 	HasHabits         bool
+	MonthData         monthViewData
 }
 
 type habitRowData struct {
-	Habit       model.Habit
-	Squares     []daySquare
-	GreenCount  int
-	RedCount    int
-	HasHistory  bool
-	Inactive    bool
-	InactiveMsg string
-	RateStr     string
+	Habit        model.Habit
+	HasHistory   bool
+	Inactive     bool
+	InactiveMsg  string
+	MonthSquares []daySquare
+	MonthGreen   int
+	MonthRed     int
+	MonthDayCols int
+	MonthRate    float64 // 0–1 fraction; -1 if no data
+	RateStr      string
 }
 
 type daySquare struct {
@@ -191,6 +195,22 @@ type daySquare struct {
 	Date    time.Time
 	WeekSep bool // insert extra space before this square (week separator)
 	IsToday bool
+}
+
+type weekGroup struct {
+	Label string
+	Days  []int
+}
+
+type monthViewData struct {
+	MonthLabel string
+	WeekGroups []weekGroup
+	DayLabels  []string
+	DailyPcts  []float64
+	WeeklyPcts []float64
+	OverallPct float64 // -1 = no data; 0–100 otherwise
+	TotalGreen int
+	TotalPoss  int
 }
 
 type backfillData struct {

@@ -30,9 +30,10 @@ body {
 }
 
 .container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 20px;
+    max-width: none;
+    width: 100%;
+    padding: 12px 20px;
+    box-sizing: border-box;
 }
 
 a {
@@ -187,18 +188,79 @@ a:hover {
     margin: 12px 0;
 }
 
-/* Habit rows */
-.habit-list {
-    margin-bottom: 4px;
-}
-.habit-row {
+/* Dashboard header */
+.dash-header {
     display: grid;
-    grid-template-columns: 24px 180px 1fr auto auto;
+    grid-template-columns: auto 1fr auto;
+    gap: 24px;
     align-items: center;
-    gap: 10px;
-    padding: 8px 10px;
-    border-radius: 4px;
+    margin-bottom: 16px;
 }
+.dash-month h2 {
+    font-size: 22px;
+    color: var(--white);
+    margin: 0 0 8px;
+}
+.dash-chart-wrap {
+    position: relative;
+    height: 80px;
+}
+.dash-progress {
+    text-align: center;
+    min-width: 110px;
+}
+
+/* CSS donut circle */
+.donut-wrap {
+    position: relative;
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 4px;
+}
+.donut-ring {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: conic-gradient(var(--accent) calc(var(--p) * 1%), var(--surface2) 0);
+}
+.donut-hole {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: bold;
+    color: var(--white);
+}
+.progress-count {
+    font-size: 11px;
+    color: var(--dim);
+}
+
+/* Grid table */
+.grid-wrap {
+    overflow-x: auto;
+    margin-bottom: 8px;
+}
+.grid-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+.grid-table th,
+.grid-table td {
+    padding: 2px 1px;
+    text-align: center;
+    border: 1px solid var(--border);
+}
+
+/* Habit rows */
 .habit-row:hover {
     background: var(--surface);
 }
@@ -208,31 +270,103 @@ a:hover {
 .habit-name {
     color: var(--white);
     font-weight: bold;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.habit-squares {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-}
-.week-sep {
-    width: 6px;
-}
-.habit-rate {
-    color: var(--dim);
-    font-size: 12px;
-    white-space: nowrap;
-}
-.habit-actions {
-    display: flex;
-    gap: 6px;
 }
 .habit-status {
     color: var(--dim);
     font-size: 12px;
-    grid-column: 3 / 5;
+}
+.archive-link {
+    color: var(--gray);
+    font-size: 13px;
+    margin-left: 4px;
+    opacity: 0;
+    text-decoration: none;
+}
+.habit-row:hover .archive-link {
+    opacity: 1;
+}
+.col-name {
+    width: 160px;
+    text-align: left;
+    padding-left: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.col-done {
+    width: 44px;
+    font-size: 11px;
+    color: var(--dim);
+}
+.col-progress {
+    width: 90px;
+}
+
+/* Week header */
+.week-header {
+    padding: 3px 1px;
+}
+.week-label {
+    font-size: 10px;
+    color: var(--dim);
+    letter-spacing: 0.5px;
+}
+.week-days {
+    display: flex;
+    justify-content: space-around;
+}
+.week-days span {
+    font-size: 9px;
+    color: var(--dim);
+}
+
+/* Square cells */
+.sq-cell {
+    width: 18px;
+    height: 22px;
+    cursor: pointer;
+    padding: 0;
+}
+.sq-cell.sq-green { background: var(--green); }
+.sq-cell.sq-yellow { background: var(--yellow); }
+.sq-cell.sq-red { background: var(--red); }
+.sq-cell.sq-gray { background: var(--surface2); }
+.sq-cell.sq-future { background: transparent; cursor: default; }
+.sq-cell.sq-today { outline: 2px solid var(--white); outline-offset: -2px; }
+.sq-cell:hover:not(.sq-future) { opacity: 0.75; }
+
+/* Progress bar */
+.prog-bar-wrap {
+    height: 6px;
+    background: var(--surface2);
+    border-radius: 3px;
+    margin-bottom: 2px;
+}
+.prog-bar-fill {
+    height: 100%;
+    background: var(--green);
+    border-radius: 3px;
+}
+.prog-pct {
+    font-size: 10px;
+    color: var(--dim);
+}
+
+/* Weekly/overall footer */
+.tfoot-label {
+    text-align: left;
+    padding-left: 6px;
+    font-size: 11px;
+    color: var(--dim);
+}
+.weekly-pct {
+    font-size: 11px;
+    color: var(--accent);
+}
+.overall-pct {
+    font-size: 11px;
+    color: var(--white);
+    font-weight: bold;
 }
 
 /* Day squares */
@@ -410,21 +544,11 @@ a:hover {
 /* Responsive */
 @media (max-width: 700px) {
     .container {
-        padding: 12px;
+        padding: 8px;
     }
-    .habit-row {
-        display: flex;
-        flex-wrap: wrap;
-    }
-    .habit-name {
-        min-width: 100px;
-        font-size: 13px;
-    }
-    .habit-status {
-        grid-column: auto;
-    }
-    .habit-actions {
-        margin-left: auto;
+    .dash-header {
+        grid-template-columns: 1fr;
+        gap: 12px;
     }
     .form-group input[type="text"],
     .form-group input[type="date"] {

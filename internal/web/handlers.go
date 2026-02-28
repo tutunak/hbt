@@ -10,8 +10,6 @@ import (
 	"time"
 )
 
-const mainScreenWeeks = 3
-
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	td := today()
 
@@ -54,6 +52,8 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	md := computeMonthData(td, rows)
+
 	data := indexData{
 		Today:             td,
 		DateStr:           td.Format("Mon Jan 2 2006"),
@@ -64,6 +64,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		BackfillItem:      bf,
 		NonObligatedCount: nonOblCount,
 		HasHabits:         len(habits) > 0,
+		MonthData:         md,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -74,6 +75,10 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) buildHabitRow(h model.Habit, td time.Time) habitRowData {
 	rd := habitRowData{Habit: h}
+
+	year, month, _ := td.Date()
+	daysInMonth := time.Date(year, month+1, 0, 0, 0, 0, 0, time.UTC).Day()
+	rd.MonthDayCols = daysInMonth
 
 	lastEntry, _ := service.GetLastEntryDate(s.db, h.ID)
 	if lastEntry == nil {
@@ -86,49 +91,139 @@ func (s *Server) buildHabitRow(h model.Habit, td time.Time) habitRowData {
 	if daysAgo > 42 {
 		rd.Inactive = true
 		rd.InactiveMsg = fmt.Sprintf("(inactive %dw)", daysAgo/7)
-		return rd
+		// Don't return early — still compute squares for the row.
 	}
 
 	entries, _ := service.GetEntriesForHabit(s.db, h.ID)
 	statuses := service.ComputeDayStatuses(h, entries, td)
 
-	totalDays := mainScreenWeeks * 7
-	startOffset := -(totalDays - 1)
-	var green, red int
-
-	for offset := startOffset; offset <= 0; offset++ {
-		pos := offset - startOffset
-		d := td.AddDate(0, 0, offset)
-		day := time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, time.UTC)
-		status := statuses[day]
-
+	for day := 1; day <= daysInMonth; day++ {
+		d := time.Date(year, month, day, 0, 0, 0, 0, time.UTC)
+		status := statuses[d]
+		if d.After(td) {
+			status = model.DayFuture
+		}
 		sq := daySquare{
 			Status:  status,
-			Date:    day,
-			IsToday: offset == 0,
+			Date:    d,
+			IsToday: day == td.Day(),
 		}
-		if pos > 0 && pos%7 == 0 {
-			sq.WeekSep = true
-		}
-		rd.Squares = append(rd.Squares, sq)
+		rd.MonthSquares = append(rd.MonthSquares, sq)
 
-		switch status {
-		case model.DayDone:
-			green++
-		case model.DayRed:
-			red++
+		if !rd.Inactive {
+			switch status {
+			case model.DayDone:
+				rd.MonthGreen++
+			case model.DayRed:
+				rd.MonthRed++
+			}
 		}
 	}
 
-	denom := green + red
+	denom := rd.MonthGreen + rd.MonthRed
 	if denom > 0 {
-		rate := float64(green) / float64(denom)
-		rd.RateStr = fmt.Sprintf("%d/%d (%s)", green, denom, fmtPct(rate))
+		rd.MonthRate = float64(rd.MonthGreen) / float64(denom)
+		rd.RateStr = fmt.Sprintf("%d/%d (%s)", rd.MonthGreen, denom, fmtPct(rd.MonthRate))
 	} else {
+		rd.MonthRate = -1
 		rd.RateStr = "(no data)"
 	}
 
 	return rd
+}
+
+func computeMonthData(td time.Time, rows []habitRowData) monthViewData {
+	year, month, _ := td.Date()
+	daysInMonth := time.Date(year, month+1, 0, 0, 0, 0, 0, time.UTC).Day()
+	todayDay := td.Day()
+
+	// Build week groups: 7-day chunks of the month.
+	var weekGroups []weekGroup
+	for start := 1; start <= daysInMonth; start += 7 {
+		end := start + 6
+		if end > daysInMonth {
+			end = daysInMonth
+		}
+		var days []int
+		for d := start; d <= end; d++ {
+			days = append(days, d)
+		}
+		n := (start-1)/7 + 1
+		weekGroups = append(weekGroups, weekGroup{
+			Label: fmt.Sprintf("WEEK %d", n),
+			Days:  days,
+		})
+	}
+
+	// Accumulate per-day green/red counts across all active habits.
+	dayGreen := make([]int, daysInMonth+1) // index 1..daysInMonth
+	dayRed := make([]int, daysInMonth+1)
+	for _, row := range rows {
+		if !row.HasHistory || row.Inactive {
+			continue
+		}
+		for _, sq := range row.MonthSquares {
+			d := sq.Date.Day()
+			switch sq.Status {
+			case model.DayDone:
+				dayGreen[d]++
+			case model.DayRed:
+				dayRed[d]++
+			}
+		}
+	}
+
+	// Daily labels and completion percentages (up to today).
+	var dayLabels []string
+	var dailyPcts []float64
+	for d := 1; d <= todayDay; d++ {
+		dayLabels = append(dayLabels, strconv.Itoa(d))
+		g, r := dayGreen[d], dayRed[d]
+		if g+r > 0 {
+			dailyPcts = append(dailyPcts, float64(g)/float64(g+r)*100)
+		} else {
+			dailyPcts = append(dailyPcts, 0)
+		}
+	}
+
+	// Weekly completion percentages.
+	var weeklyPcts []float64
+	for _, wg := range weekGroups {
+		var g, r int
+		for _, d := range wg.Days {
+			if d <= todayDay {
+				g += dayGreen[d]
+				r += dayRed[d]
+			}
+		}
+		if g+r > 0 {
+			weeklyPcts = append(weeklyPcts, float64(g)/float64(g+r)*100)
+		} else {
+			weeklyPcts = append(weeklyPcts, -1)
+		}
+	}
+
+	// Overall monthly percentage.
+	var totalGreen, totalRed int
+	for _, row := range rows {
+		totalGreen += row.MonthGreen
+		totalRed += row.MonthRed
+	}
+	overallPct := -1.0
+	if totalGreen+totalRed > 0 {
+		overallPct = float64(totalGreen) / float64(totalGreen+totalRed) * 100
+	}
+
+	return monthViewData{
+		MonthLabel: td.Format("January 2006"),
+		WeekGroups: weekGroups,
+		DayLabels:  dayLabels,
+		DailyPcts:  dailyPcts,
+		WeeklyPcts: weeklyPcts,
+		OverallPct: overallPct,
+		TotalGreen: totalGreen,
+		TotalPoss:  totalGreen + totalRed,
+	}
 }
 
 func fmtPct(r float64) string {
