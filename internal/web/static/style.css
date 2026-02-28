@@ -340,7 +340,11 @@ a:hover {
 }
 .grid-table tbody td {
     border-bottom: 1px solid var(--border);
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
     padding: 0;
+}
+.grid-table tbody td:last-child {
+    border-right: none;
 }
 .grid-table tfoot td {
     background: var(--surface2);
@@ -356,11 +360,11 @@ a:hover {
 }
 
 /* Habit row */
-.habit-row td {
-    transition: background 0.1s;
-}
-.habit-row:hover td {
-    background: rgba(139, 92, 246, 0.04);
+.habit-row:hover .col-name,
+.habit-row:hover .col-done,
+.habit-row:hover .col-progress,
+.habit-row:hover .col-status {
+    background: var(--surface2);
 }
 .habit-emoji {
     font-size: 13px;
