@@ -103,8 +103,9 @@ func (s *Server) buildHabitRow(h model.Habit, td time.Time) habitRowData {
 		status := statuses[day]
 
 		sq := daySquare{
-			Status: status,
-			Date:   day,
+			Status:  status,
+			Date:    day,
+			IsToday: offset == 0,
 		}
 		if pos > 0 && pos%7 == 0 {
 			sq.WeekSep = true
@@ -163,6 +164,58 @@ func (s *Server) handleRecordEntry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Out-of-band swap for global stats
+	fmt.Fprint(w, `<div id="global-stats" hx-swap-oob="innerHTML">`)
+	s.tmpl.globalLine.ExecuteTemplate(w, "global_stats", gs)
+	fmt.Fprint(w, `</div>`)
+}
+
+func (s *Server) handleToggleEntry(w http.ResponseWriter, r *http.Request) {
+	td := today()
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", 400)
+		return
+	}
+
+	dateStr := r.URL.Query().Get("date")
+	date, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		http.Error(w, "invalid date", 400)
+		return
+	}
+
+	entry, err := service.GetEntryForDay(s.db, id, date)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	switch {
+	case entry == nil:
+		err = service.RecordEntry(s.db, id, date, true)
+	case entry.DidIt:
+		err = service.RecordEntry(s.db, id, date, false)
+	default:
+		err = service.DeleteEntry(s.db, id, date)
+	}
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	h, err := service.GetHabit(s.db, id)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	row := s.buildHabitRow(h, td)
+	gs, _ := service.ComputeGlobalStats(s.db, td)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := s.tmpl.habitRow.ExecuteTemplate(w, "habit_row", row); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
 	fmt.Fprint(w, `<div id="global-stats" hx-swap-oob="innerHTML">`)
 	s.tmpl.globalLine.ExecuteTemplate(w, "global_stats", gs)
 	fmt.Fprint(w, `</div>`)

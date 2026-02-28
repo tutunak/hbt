@@ -247,6 +247,14 @@ a:hover {
 .sq-red { background: var(--red); }
 .sq-gray { background: var(--gray); opacity: 0.5; }
 .sq-future { background: transparent; }
+.sq-clickable {
+    cursor: pointer;
+}
+.sq-clickable:hover {
+    opacity: 0.75;
+    outline: 1px solid var(--white);
+    outline-offset: 1px;
+}
 
 /* Global stats line */
 .global-stats {

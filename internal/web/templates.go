@@ -86,6 +86,10 @@ func loadTemplates() (*templateSet, error) {
 			b, _ := json.Marshal(v)
 			return template.JS(b)
 		},
+		"isDayFuture": func(s model.DayStatus) bool { return s == model.DayFuture },
+		"hasEntry": func(s model.DayStatus) bool {
+			return s == model.DayDone || s == model.DayYellow || s == model.DayRed
+		},
 	}
 
 	parse := func(files ...string) (*template.Template, error) {
@@ -183,9 +187,10 @@ type habitRowData struct {
 }
 
 type daySquare struct {
-	Status model.DayStatus
-	Date   time.Time
+	Status  model.DayStatus
+	Date    time.Time
 	WeekSep bool // insert extra space before this square (week separator)
+	IsToday bool
 }
 
 type backfillData struct {

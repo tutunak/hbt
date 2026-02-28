@@ -8,19 +8,35 @@
         <span class="habit-status">(no history)</span>
     {{else}}
         <span class="habit-squares">
-            {{range .Squares}}{{if .WeekSep}}<span class="week-sep"></span>{{end}}<span class="sq {{squareClass .Status}}" title="{{fmtDateHuman .Date}}"></span>{{end}}
+            {{range .Squares}}
+                {{if .WeekSep}}<span class="week-sep"></span>{{end}}
+                {{if isDayFuture .Status}}
+                    <span class="sq sq-future" title="{{fmtDateHuman .Date}}"></span>
+                {{else if .IsToday}}
+                    <span class="sq {{squareClass .Status}} sq-clickable"
+                          hx-post="/habits/{{$.Habit.ID}}/entry/toggle?date={{fmtDate .Date}}"
+                          hx-target="#habit-{{$.Habit.ID}}"
+                          hx-swap="outerHTML"
+                          title="{{fmtDateHuman .Date}} (today)"></span>
+                {{else if hasEntry .Status}}
+                    <span class="sq {{squareClass .Status}} sq-clickable"
+                          hx-post="/habits/{{$.Habit.ID}}/entry/toggle?date={{fmtDate .Date}}"
+                          hx-confirm="Change entry for {{fmtDateHuman .Date}}?"
+                          hx-target="#habit-{{$.Habit.ID}}"
+                          hx-swap="outerHTML"
+                          title="{{fmtDateHuman .Date}}"></span>
+                {{else}}
+                    <span class="sq {{squareClass .Status}} sq-clickable"
+                          hx-post="/habits/{{$.Habit.ID}}/entry/toggle?date={{fmtDate .Date}}"
+                          hx-target="#habit-{{$.Habit.ID}}"
+                          hx-swap="outerHTML"
+                          title="{{fmtDateHuman .Date}}"></span>
+                {{end}}
+            {{end}}
         </span>
         <span class="habit-rate">{{.RateStr}}</span>
     {{end}}
     <span class="habit-actions">
-        <button class="btn btn-green"
-                hx-post="/habits/{{.Habit.ID}}/entry?did_it=true"
-                hx-target="#habit-{{.Habit.ID}}"
-                hx-swap="outerHTML">Done</button>
-        <button class="btn btn-red"
-                hx-post="/habits/{{.Habit.ID}}/entry?did_it=false"
-                hx-target="#habit-{{.Habit.ID}}"
-                hx-swap="outerHTML">Skip</button>
         <a href="/habits/{{.Habit.ID}}/archive" class="btn btn-skip">Archive</a>
     </span>
 </div>

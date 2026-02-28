@@ -22,6 +22,13 @@ func RecordEntry(db *sql.DB, habitID int64, date time.Time, didIt bool) error {
 	return err
 }
 
+// DeleteEntry removes an entry for a habit on a date (no-op if none exists).
+func DeleteEntry(db *sql.DB, habitID int64, date time.Time) error {
+	_, err := db.Exec(`DELETE FROM entries WHERE habit_id = ? AND entry_date = ?`,
+		habitID, fmtDate(date))
+	return err
+}
+
 // GetEntryForDay returns the entry for a specific habit+date, or nil if none.
 func GetEntryForDay(db *sql.DB, habitID int64, date time.Time) (*model.Entry, error) {
 	row := db.QueryRow(`

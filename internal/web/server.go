@@ -37,6 +37,7 @@ func (s *Server) routes() {
 
 	// htmx endpoints
 	s.mux.HandleFunc("POST /habits/{id}/entry", s.handleRecordEntry)
+	s.mux.HandleFunc("POST /habits/{id}/entry/toggle", s.handleToggleEntry)
 	s.mux.HandleFunc("POST /backfill/{habitID}/{date}", s.handleBackfillAnswer)
 	s.mux.HandleFunc("POST /backfill/skip/{habitID}/{date}", s.handleBackfillSkip)
 	s.mux.HandleFunc("GET /promotion/{id}/confirm", s.handlePromotionConfirm)
