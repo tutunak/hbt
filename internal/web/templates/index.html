@@ -126,8 +126,8 @@ new Chart(document.getElementById('dailyChart'), {
     datasets: [{
       data: {{toJSON .MonthData.DailyPcts}},
       fill: true,
-      borderColor: '#8B5CF6',
-      backgroundColor: 'rgba(139,92,246,0.15)',
+      borderColor: '#A78BFA',
+      backgroundColor: 'rgba(167,139,250,0.15)',
       tension: 0.4,
       pointRadius: 2
     }]
@@ -138,10 +138,10 @@ new Chart(document.getElementById('dailyChart'), {
     plugins: { legend: { display: false } },
     scales: {
       y: { min: 0, max: 100,
-           ticks: { color: '#8486A0', callback: function(v){ return v+'%'; },
+           ticks: { color: '#9CA3AF', callback: function(v){ return v+'%'; },
                     font: { family: "'Inter','Segoe UI',system-ui,sans-serif", size: 10 } },
-           grid: { color: '#262950' } },
-      x: { ticks: { color: '#8486A0',
+           grid: { color: '#2a3a5e' } },
+      x: { ticks: { color: '#9CA3AF',
                      font: { family: "'Inter','Segoe UI',system-ui,sans-serif", size: 10 } },
            grid: { display: false } }
     }

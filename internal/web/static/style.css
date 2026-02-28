@@ -5,22 +5,22 @@
 
 :root {
     --green: #22C55E;
-    --yellow: #FACC15;
-    --red: #F87171;
+    --yellow: #EAB308;
+    --red: #EF4444;
     --gray: #6B7280;
-    --blue: #60A5FA;
-    --accent: #8B5CF6;
-    --accent-light: #A78BFA;
-    --accent-glow: rgba(139, 92, 246, 0.25);
-    --white: #EEEEF4;
-    --dim: #8486A0;
-    --warning: #FB923C;
-    --bg: #0B0D1A;
-    --surface: #12142A;
-    --surface2: #1A1D35;
-    --surface3: #22254A;
-    --border: #262950;
-    --border-light: #32366A;
+    --blue: #3B82F6;
+    --accent: #A78BFA;
+    --accent-light: #C4B5FD;
+    --accent-glow: rgba(167, 139, 250, 0.25);
+    --white: #F9FAFB;
+    --dim: #9CA3AF;
+    --warning: #F97316;
+    --bg: #1a1a2e;
+    --surface: #16213e;
+    --surface2: #1f2f50;
+    --surface3: #2a3a5e;
+    --border: #2a3a5e;
+    --border-light: #3a4a6e;
 }
 
 * {
@@ -33,7 +33,7 @@ body {
     background: var(--bg);
     color: var(--dim);
     font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.5;
     min-height: 100vh;
 }
@@ -88,17 +88,17 @@ a:hover {
    ============================================= */
 .dash-header {
     display: grid;
-    grid-template-columns: 200px 1fr 160px;
-    gap: 20px;
+    grid-template-columns: auto 1fr auto;
+    gap: 12px;
     align-items: stretch;
-    margin-bottom: 20px;
+    margin-bottom: 14px;
 }
 
 .dash-month {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 12px;
-    padding: 20px;
+    padding: 14px;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -115,9 +115,9 @@ a:hover {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 12px;
-    padding: 16px 20px;
+    padding: 12px 16px;
     position: relative;
-    min-height: 110px;
+    min-height: 90px;
 }
 .dash-chart-wrap::before {
     content: 'DAILY PROGRESS';
@@ -138,7 +138,7 @@ a:hover {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 12px;
-    padding: 16px 20px;
+    padding: 12px 14px;
     text-align: center;
     display: flex;
     flex-direction: column;
@@ -313,7 +313,7 @@ a:hover {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 12px;
-    padding: 4px;
+    padding: 2px;
 }
 .grid-table {
     width: 100%;
@@ -369,7 +369,7 @@ a:hover {
 .habit-name {
     color: var(--white);
     font-weight: 600;
-    font-size: 12px;
+    font-size: 13px;
     vertical-align: middle;
 }
 .habit-status {
@@ -392,24 +392,24 @@ a:hover {
     color: var(--red);
 }
 .col-name {
-    width: 180px;
-    max-width: 180px;
+    width: 200px;
+    max-width: 200px;
     text-align: left;
-    padding: 8px 8px 8px 12px !important;
+    padding: 6px 8px 6px 10px !important;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 .col-done {
-    width: 52px;
-    font-size: 11px;
+    width: 50px;
+    font-size: 12px;
     color: var(--dim);
     font-weight: 500;
     padding: 4px !important;
 }
 .col-progress {
-    width: 100px;
-    padding: 4px 8px !important;
+    width: 80px;
+    padding: 4px 6px !important;
 }
 .col-status {
     padding: 8px !important;
@@ -433,7 +433,7 @@ a:hover {
     justify-content: space-around;
 }
 .week-days span {
-    font-size: 10px;
+    font-size: 11px;
     color: var(--dim);
     font-weight: 500;
 }
@@ -442,22 +442,21 @@ a:hover {
    Square Cells (Grid)
    ============================================= */
 .sq-cell {
-    width: 24px;
-    height: 28px;
+    height: 24px;
+    min-width: 14px;
     cursor: pointer;
     padding: 0 !important;
     position: relative;
-    transition: all 0.1s;
+    transition: background 0.1s;
 }
 .sq-cell.sq-green {
-    background: var(--accent);
+    background: var(--green);
 }
 .sq-cell.sq-yellow {
     background: var(--yellow);
 }
 .sq-cell.sq-red {
     background: var(--red);
-    opacity: 0.8;
 }
 .sq-cell.sq-gray {
     background: var(--surface3);
@@ -467,13 +466,12 @@ a:hover {
     cursor: default;
 }
 .sq-cell.sq-today {
-    outline: 2px solid var(--accent-light);
+    outline: 2px solid var(--white);
     outline-offset: -2px;
     z-index: 1;
 }
 .sq-cell:hover:not(.sq-future) {
-    filter: brightness(1.3);
-    transform: scale(1.05);
+    filter: brightness(1.2);
 }
 
 /* =============================================
@@ -493,7 +491,7 @@ a:hover {
     transition: width 0.3s;
 }
 .prog-pct {
-    font-size: 11px;
+    font-size: 12px;
     color: var(--white);
     font-weight: 600;
 }
@@ -528,9 +526,9 @@ a:hover {
     height: 16px;
     border-radius: 3px;
 }
-.sq-green { background: var(--accent); }
+.sq-green { background: var(--green); }
 .sq-yellow { background: var(--yellow); }
-.sq-red { background: var(--red); opacity: 0.8; }
+.sq-red { background: var(--red); }
 .sq-gray { background: var(--surface3); opacity: 0.5; }
 .sq-future { background: transparent; }
 .sq-clickable {
@@ -552,7 +550,7 @@ a:hover {
 .global-stats .rate {
     color: var(--accent-light);
     font-weight: 700;
-    font-size: 14px;
+    font-size: 15px;
 }
 .global-stats .counts {
     color: var(--dim);
