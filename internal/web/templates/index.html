@@ -1,7 +1,7 @@
 {{define "content"}}
 <div class="dash-header">
   <div class="dash-month">
-    <h2>{{.MonthData.MonthLabel}}</h2>
+    <h2>{{.RollingData.Label}}</h2>
     <nav class="nav">
       <a href="/habits/new">+ Add Habit</a>
       <a href="/stats">Statistics</a>
@@ -12,12 +12,12 @@
     <canvas id="dailyChart"></canvas>
   </div>
   <div class="dash-progress">
-    {{if ge .MonthData.OverallPct 0.0}}
+    {{if ge .RollingData.OverallPct 0.0}}
     <div class="donut-wrap">
-      <div class="donut-ring" style="--p:{{printf "%.1f" .MonthData.OverallPct}}"></div>
-      <div class="donut-hole">{{printf "%.0f%%" .MonthData.OverallPct}}</div>
+      <div class="donut-ring" style="--p:{{printf "%.1f" .RollingData.OverallPct}}"></div>
+      <div class="donut-hole">{{printf "%.0f%%" .RollingData.OverallPct}}</div>
     </div>
-    <div class="progress-count">{{.MonthData.TotalGreen}}/{{.MonthData.TotalPoss}} done</div>
+    <div class="progress-count">{{.RollingData.TotalGreen}}/{{.RollingData.TotalPoss}} done</div>
     {{else}}
     <div class="donut-wrap">
       <div class="donut-ring" style="--p:0"></div>
@@ -79,12 +79,12 @@
 {{if not .HasHabits}}
 <div class="empty">No habits yet. <a href="/habits/new">Add your first habit</a>.</div>
 {{else}}
-<div class="grid-wrap">
+<div class="grid-wrap" id="grid-wrap">
   <table class="grid-table">
     <thead>
       <tr>
         <th class="col-name">Habit</th>
-        {{range .MonthData.WeekGroups}}
+        {{range .RollingData.WeekGroups}}
         <th colspan="{{dayCount .}}" class="week-header">
           <div class="week-label">{{.Label}}</div>
           <div class="week-days">{{range .Days}}<span>{{.}}</span>{{end}}</div>
@@ -100,13 +100,13 @@
     <tfoot>
       <tr>
         <td class="tfoot-label">Weekly:</td>
-        {{range $i, $pct := .MonthData.WeeklyPcts}}
-        <td colspan="{{index $.MonthData.WeekGroups $i | dayCount}}" class="weekly-pct">
+        {{range $i, $pct := .RollingData.WeeklyPcts}}
+        <td colspan="{{index $.RollingData.WeekGroups $i | dayCount}}" class="weekly-pct">
           {{if ge $pct 0.0}}{{printf "%.0f%%" $pct}}{{else}}—{{end}}
         </td>
         {{end}}
         <td colspan="2" class="overall-pct">
-          {{if ge .MonthData.OverallPct 0.0}}{{printf "%.0f%%" .MonthData.OverallPct}}{{else}}—{{end}}
+          {{if ge .RollingData.OverallPct 0.0}}{{printf "%.0f%%" .RollingData.OverallPct}}{{else}}—{{end}}
         </td>
       </tr>
     </tfoot>
@@ -122,9 +122,9 @@
 new Chart(document.getElementById('dailyChart'), {
   type: 'line',
   data: {
-    labels: {{toJSON .MonthData.DayLabels}},
+    labels: {{toJSON .RollingData.DayLabels}},
     datasets: [{
-      data: {{toJSON .MonthData.DailyPcts}},
+      data: {{toJSON .RollingData.DailyPcts}},
       fill: true,
       borderColor: '#A78BFA',
       backgroundColor: 'rgba(167,139,250,0.15)',
@@ -147,5 +147,9 @@ new Chart(document.getElementById('dailyChart'), {
     }
   }
 });
+(function() {
+  var wrap = document.getElementById('grid-wrap');
+  if (wrap) wrap.scrollLeft = wrap.scrollWidth;
+})();
 </script>
 {{end}}

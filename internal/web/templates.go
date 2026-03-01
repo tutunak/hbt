@@ -174,7 +174,7 @@ type indexData struct {
 	BackfillIdx       int
 	NonObligatedCount int
 	HasHabits         bool
-	MonthData         monthViewData
+	RollingData       rollingViewData
 }
 
 type habitRowData struct {
@@ -182,11 +182,11 @@ type habitRowData struct {
 	HasHistory   bool
 	Inactive     bool
 	InactiveMsg  string
-	MonthSquares []daySquare
-	MonthGreen   int
-	MonthRed     int
-	MonthDayCols int
-	MonthRate    float64 // 0–1 fraction; -1 if no data
+	Squares      []daySquare
+	RollingGreen int
+	RollingRed   int
+	DisplayCols  int
+	RollingRate  float64 // 0–1 fraction; -1 if no data
 	RateStr      string
 }
 
@@ -199,11 +199,11 @@ type daySquare struct {
 
 type weekGroup struct {
 	Label string
-	Days  []int
+	Days  []string
 }
 
-type monthViewData struct {
-	MonthLabel string
+type rollingViewData struct {
+	Label      string
 	WeekGroups []weekGroup
 	DayLabels  []string
 	DailyPcts  []float64

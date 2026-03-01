@@ -52,7 +52,17 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	md := computeMonthData(td, rows)
+	rd := computeRollingData(td, rows)
+
+	// Compute total display columns from the rolling data's week groups.
+	totalCols := 0
+	for _, wg := range rd.WeekGroups {
+		totalCols += len(wg.Days)
+	}
+	// Set DisplayCols on every row to match the header column count.
+	for i := range rows {
+		rows[i].DisplayCols = totalCols
+	}
 
 	data := indexData{
 		Today:             td,
@@ -64,7 +74,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		BackfillItem:      bf,
 		NonObligatedCount: nonOblCount,
 		HasHabits:         len(habits) > 0,
-		MonthData:         md,
+		RollingData:       rd,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -76,13 +86,10 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 func (s *Server) buildHabitRow(h model.Habit, td time.Time) habitRowData {
 	rd := habitRowData{Habit: h}
 
-	year, month, _ := td.Date()
-	daysInMonth := time.Date(year, month+1, 0, 0, 0, 0, 0, time.UTC).Day()
-	rd.MonthDayCols = daysInMonth
-
 	lastEntry, _ := service.GetLastEntryDate(s.db, h.ID)
 	if lastEntry == nil {
 		rd.HasHistory = false
+		rd.DisplayCols = 28
 		return rd
 	}
 
@@ -91,94 +98,122 @@ func (s *Server) buildHabitRow(h model.Habit, td time.Time) habitRowData {
 	if daysAgo > 42 {
 		rd.Inactive = true
 		rd.InactiveMsg = fmt.Sprintf("(inactive %dw)", daysAgo/7)
-		// Don't return early — still compute squares for the row.
 	}
 
 	entries, _ := service.GetEntriesForHabit(s.db, h.ID)
 	statuses := service.ComputeDayStatuses(h, entries, td)
 
-	for day := 1; day <= daysInMonth; day++ {
-		d := time.Date(year, month, day, 0, 0, 0, 0, time.UTC)
+	// Build squares from habit start date to today (chronological).
+	start := h.StartDate
+	rollingStart := td.AddDate(0, 0, -27) // last 28 days
+
+	for d := start; !d.After(td); d = d.AddDate(0, 0, 1) {
 		status := statuses[d]
-		if d.After(td) {
-			status = model.DayFuture
-		}
 		sq := daySquare{
 			Status:  status,
 			Date:    d,
-			IsToday: day == td.Day(),
+			IsToday: d.Equal(td),
 		}
-		rd.MonthSquares = append(rd.MonthSquares, sq)
+		rd.Squares = append(rd.Squares, sq)
 
-		if !rd.Inactive {
+		// Count rolling stats only for last 28 days and non-inactive habits.
+		if !rd.Inactive && !d.Before(rollingStart) {
 			switch status {
 			case model.DayDone:
-				rd.MonthGreen++
+				rd.RollingGreen++
 			case model.DayRed:
-				rd.MonthRed++
+				rd.RollingRed++
 			}
 		}
 	}
 
-	denom := rd.MonthGreen + rd.MonthRed
+	rd.DisplayCols = len(rd.Squares)
+	if rd.DisplayCols < 28 {
+		rd.DisplayCols = 28
+	}
+
+	denom := rd.RollingGreen + rd.RollingRed
 	if denom > 0 {
-		rd.MonthRate = float64(rd.MonthGreen) / float64(denom)
-		rd.RateStr = fmt.Sprintf("%d/%d (%s)", rd.MonthGreen, denom, fmtPct(rd.MonthRate))
+		rd.RollingRate = float64(rd.RollingGreen) / float64(denom)
+		rd.RateStr = fmt.Sprintf("%d/%d (%s)", rd.RollingGreen, denom, fmtPct(rd.RollingRate))
 	} else {
-		rd.MonthRate = -1
+		rd.RollingRate = -1
 		rd.RateStr = "(no data)"
 	}
 
 	return rd
 }
 
-func computeMonthData(td time.Time, rows []habitRowData) monthViewData {
-	year, month, _ := td.Date()
-	daysInMonth := time.Date(year, month+1, 0, 0, 0, 0, 0, time.UTC).Day()
-	todayDay := td.Day()
+func mondayOf(t time.Time) time.Time {
+	wd := t.Weekday()
+	if wd == time.Sunday {
+		wd = 7
+	}
+	return t.AddDate(0, 0, -int(wd-time.Monday))
+}
 
-	// Build week groups: 7-day chunks of the month.
-	var weekGroups []weekGroup
-	for start := 1; start <= daysInMonth; start += 7 {
-		end := start + 6
-		if end > daysInMonth {
-			end = daysInMonth
+func computeRollingData(td time.Time, rows []habitRowData) rollingViewData {
+	// Find maxDays across all habits (minimum 28).
+	maxDays := 28
+	for _, row := range rows {
+		if len(row.Squares) > maxDays {
+			maxDays = len(row.Squares)
 		}
-		var days []int
-		for d := start; d <= end; d++ {
-			days = append(days, d)
-		}
-		n := (start-1)/7 + 1
-		weekGroups = append(weekGroups, weekGroup{
-			Label: fmt.Sprintf("WEEK %d", n),
-			Days:  days,
-		})
 	}
 
-	// Accumulate per-day green/red counts across all active habits.
-	dayGreen := make([]int, daysInMonth+1) // index 1..daysInMonth
-	dayRed := make([]int, daysInMonth+1)
+	// Compute the date range: oldest..today, spanning maxDays.
+	oldest := td.AddDate(0, 0, -(maxDays - 1))
+
+	// Build calendar week groups (Mon-Sun) in chronological order.
+	weekStart := mondayOf(oldest)
+	var weekGroups []weekGroup
+	for !weekStart.After(td) {
+		weekEnd := weekStart.AddDate(0, 0, 6)
+		var days []string
+		for d := weekStart; !d.After(weekEnd); d = d.AddDate(0, 0, 1) {
+			if !d.Before(oldest) && !d.After(td) {
+				days = append(days, strconv.Itoa(d.Day()))
+			}
+		}
+		if len(days) > 0 {
+			label := weekStart.Format("Jan 2")
+			weekGroups = append(weekGroups, weekGroup{
+				Label: label,
+				Days:  days,
+			})
+		}
+		weekStart = weekStart.AddDate(0, 0, 7)
+	}
+
+	// Accumulate per-day green/red counts across all active habits (last 28 days only).
+	rollingStart := td.AddDate(0, 0, -27)
+	dayGreen := map[string]int{}
+	dayRed := map[string]int{}
 	for _, row := range rows {
 		if !row.HasHistory || row.Inactive {
 			continue
 		}
-		for _, sq := range row.MonthSquares {
-			d := sq.Date.Day()
+		for _, sq := range row.Squares {
+			if sq.Date.Before(rollingStart) {
+				continue
+			}
+			key := sq.Date.Format("2006-01-02")
 			switch sq.Status {
 			case model.DayDone:
-				dayGreen[d]++
+				dayGreen[key]++
 			case model.DayRed:
-				dayRed[d]++
+				dayRed[key]++
 			}
 		}
 	}
 
-	// Daily labels and completion percentages (up to today).
+	// Daily labels and completion percentages for last 28 days (chart data).
 	var dayLabels []string
 	var dailyPcts []float64
-	for d := 1; d <= todayDay; d++ {
-		dayLabels = append(dayLabels, strconv.Itoa(d))
-		g, r := dayGreen[d], dayRed[d]
+	for d := rollingStart; !d.After(td); d = d.AddDate(0, 0, 1) {
+		dayLabels = append(dayLabels, strconv.Itoa(d.Day()))
+		key := d.Format("2006-01-02")
+		g, r := dayGreen[key], dayRed[key]
 		if g+r > 0 {
 			dailyPcts = append(dailyPcts, float64(g)/float64(g+r)*100)
 		} else {
@@ -186,36 +221,44 @@ func computeMonthData(td time.Time, rows []habitRowData) monthViewData {
 		}
 	}
 
-	// Weekly completion percentages.
+	// Weekly completion percentages for each week group.
 	var weeklyPcts []float64
-	for _, wg := range weekGroups {
+	wkMonday := mondayOf(oldest)
+	for range weekGroups {
+		wkEnd := wkMonday.AddDate(0, 0, 6)
 		var g, r int
-		for _, d := range wg.Days {
-			if d <= todayDay {
-				g += dayGreen[d]
-				r += dayRed[d]
+		for d := wkMonday; !d.After(wkEnd); d = d.AddDate(0, 0, 1) {
+			if d.Before(rollingStart) || d.After(td) {
+				continue
 			}
+			key := d.Format("2006-01-02")
+			g += dayGreen[key]
+			r += dayRed[key]
 		}
-		if g+r > 0 {
+		// Only include weeks that overlap with the 28-day rolling window.
+		if wkEnd.Before(rollingStart) {
+			weeklyPcts = append(weeklyPcts, -1)
+		} else if g+r > 0 {
 			weeklyPcts = append(weeklyPcts, float64(g)/float64(g+r)*100)
 		} else {
 			weeklyPcts = append(weeklyPcts, -1)
 		}
+		wkMonday = wkMonday.AddDate(0, 0, 7)
 	}
 
-	// Overall monthly percentage.
+	// Overall rolling percentage.
 	var totalGreen, totalRed int
 	for _, row := range rows {
-		totalGreen += row.MonthGreen
-		totalRed += row.MonthRed
+		totalGreen += row.RollingGreen
+		totalRed += row.RollingRed
 	}
 	overallPct := -1.0
 	if totalGreen+totalRed > 0 {
 		overallPct = float64(totalGreen) / float64(totalGreen+totalRed) * 100
 	}
 
-	return monthViewData{
-		MonthLabel: td.Format("January 2006"),
+	return rollingViewData{
+		Label:      "Last 4 Weeks",
 		WeekGroups: weekGroups,
 		DayLabels:  dayLabels,
 		DailyPcts:  dailyPcts,
@@ -228,6 +271,31 @@ func computeMonthData(td time.Time, rows []habitRowData) monthViewData {
 
 func fmtPct(r float64) string {
 	return fmt.Sprintf("%.0f%%", r*100)
+}
+
+// computeDisplayCols returns the total number of day columns for the grid header.
+func (s *Server) computeDisplayCols(td time.Time) int {
+	habits, _ := service.ListHabits(s.db, false)
+	maxDays := 28
+	for _, h := range habits {
+		days := int(td.Sub(h.StartDate).Hours()/24) + 1
+		if days > maxDays {
+			maxDays = days
+		}
+	}
+	oldest := td.AddDate(0, 0, -(maxDays - 1))
+	wkStart := mondayOf(oldest)
+	totalCols := 0
+	for !wkStart.After(td) {
+		wkEnd := wkStart.AddDate(0, 0, 6)
+		for d := wkStart; !d.After(wkEnd); d = d.AddDate(0, 0, 1) {
+			if !d.Before(oldest) && !d.After(td) {
+				totalCols++
+			}
+		}
+		wkStart = wkStart.AddDate(0, 0, 7)
+	}
+	return totalCols
 }
 
 func (s *Server) handleRecordEntry(w http.ResponseWriter, r *http.Request) {
@@ -251,6 +319,7 @@ func (s *Server) handleRecordEntry(w http.ResponseWriter, r *http.Request) {
 	}
 
 	row := s.buildHabitRow(h, td)
+	row.DisplayCols = s.computeDisplayCols(td)
 	gs, _ := service.ComputeGlobalStats(s.db, td)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -305,6 +374,7 @@ func (s *Server) handleToggleEntry(w http.ResponseWriter, r *http.Request) {
 	}
 
 	row := s.buildHabitRow(h, td)
+	row.DisplayCols = s.computeDisplayCols(td)
 	gs, _ := service.ComputeGlobalStats(s.db, td)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.tmpl.habitRow.ExecuteTemplate(w, "habit_row", row); err != nil {

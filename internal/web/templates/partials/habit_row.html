@@ -6,12 +6,14 @@
     <a href="/habits/{{.Habit.ID}}/archive" class="archive-link" title="Archive">×</a>
   </td>
   {{if or .Inactive (not .HasHistory)}}
-    <td colspan="{{.MonthDayCols}}" class="habit-status col-status">
+    <td colspan="{{.DisplayCols}}" class="habit-status col-status">
       {{if .Inactive}}{{.InactiveMsg}}{{else}}(no history){{end}}
     </td>
     <td colspan="2"></td>
   {{else}}
-    {{range .MonthSquares}}
+    {{$pad := sub .DisplayCols (len .Squares)}}
+    {{range seq $pad}}<td class="sq-cell sq-future"></td>{{end}}
+    {{range .Squares}}
     <td class="sq-cell {{squareClass .Status}}{{if .IsToday}} sq-today{{end}}"
         {{if not (isDayFuture .Status)}}
         hx-post="/habits/{{$.Habit.ID}}/entry/toggle?date={{fmtDate .Date}}"
@@ -21,11 +23,11 @@
         title="{{fmtDateHuman .Date}}{{if .IsToday}} (today){{end}}"
         {{end}}></td>
     {{end}}
-    <td class="col-done">{{.MonthGreen}}/{{add .MonthGreen .MonthRed}}</td>
+    <td class="col-done">{{.RollingGreen}}/{{add .RollingGreen .RollingRed}}</td>
     <td class="col-progress">
-      {{if gt (add .MonthGreen .MonthRed) 0}}
-      <div class="prog-bar-wrap"><div class="prog-bar-fill" style="width:{{fmtPct .MonthRate}}"></div></div>
-      <span class="prog-pct">{{fmtPct .MonthRate}}</span>
+      {{if gt (add .RollingGreen .RollingRed) 0}}
+      <div class="prog-bar-wrap"><div class="prog-bar-fill" style="width:{{fmtPct .RollingRate}}"></div></div>
+      <span class="prog-pct">{{fmtPct .RollingRate}}</span>
       {{else}}—{{end}}
     </td>
   {{end}}
