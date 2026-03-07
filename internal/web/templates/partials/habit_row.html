@@ -14,7 +14,7 @@
     {{$pad := sub .DisplayCols (len .Squares)}}
     {{range seq $pad}}<td class="sq-cell sq-future"></td>{{end}}
     {{range .Squares}}
-    <td class="sq-cell {{squareClass .Status}}{{if .IsToday}} sq-today{{end}}"
+    <td class="sq-cell {{squareClass .Status}}{{if .IsToday}} sq-today{{end}}{{if .Unchecked}} sq-unchecked{{end}}"
         {{if not (isDayFuture .Status)}}
         hx-post="/habits/{{$.Habit.ID}}/entry/toggle?date={{fmtDate .Date}}"
         hx-target="#habit-{{$.Habit.ID}}"

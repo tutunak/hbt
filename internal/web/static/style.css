@@ -761,27 +761,10 @@ a:hover {
 }
 
 /* =============================================
-   Backfill
+   Unchecked Highlighting
    ============================================= */
-.backfill-question {
-    color: var(--white);
-    margin-bottom: 8px;
-    font-weight: 500;
-}
-.backfill-date {
-    color: var(--yellow);
-    font-weight: 600;
-}
-.backfill-actions {
-    display: flex;
-    gap: 8px;
-}
-.backfill-progress {
-    color: var(--dim);
-    font-size: 11px;
-    margin-bottom: 6px;
-    font-weight: 500;
-}
+.day-unchecked { color: var(--yellow) !important; font-weight: 700; }
+.sq-cell.sq-gray.sq-unchecked { box-shadow: inset 0 0 0 2px var(--yellow); }
 
 /* =============================================
    Responsive

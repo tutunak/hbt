@@ -20,7 +20,6 @@ type templateSet struct {
 	promoConfirm *template.Template
 	archivedList *template.Template
 	habitRow     *template.Template
-	backfill     *template.Template
 	globalLine   *template.Template
 }
 
@@ -101,7 +100,6 @@ func loadTemplates() (*templateSet, error) {
 
 	index, err := parse(layout, "templates/index.html",
 		"templates/partials/habit_row.html",
-		"templates/partials/backfill_item.html",
 		"templates/partials/global_stats.html")
 	if err != nil {
 		return nil, fmt.Errorf("parse index: %w", err)
@@ -137,11 +135,6 @@ func loadTemplates() (*templateSet, error) {
 		return nil, fmt.Errorf("parse habit_row partial: %w", err)
 	}
 
-	backfill, err := parse("templates/partials/backfill_item.html")
-	if err != nil {
-		return nil, fmt.Errorf("parse backfill partial: %w", err)
-	}
-
 	globalLine, err := parse("templates/partials/global_stats.html")
 	if err != nil {
 		return nil, fmt.Errorf("parse global_stats partial: %w", err)
@@ -155,7 +148,6 @@ func loadTemplates() (*templateSet, error) {
 		promoConfirm: promoConfirm,
 		archivedList: archivedList,
 		habitRow:     habitRow,
-		backfill:     backfill,
 		globalLine:   globalLine,
 	}, nil
 }
@@ -169,9 +161,6 @@ type indexData struct {
 	GlobalStats       model.GlobalStats
 	NeedPromotion     bool
 	PromoHabits       []model.Habit
-	BackfillItem      *backfillData
-	BackfillTotal     int
-	BackfillIdx       int
 	NonObligatedCount int
 	HasHabits         bool
 	RollingData       rollingViewData
@@ -191,35 +180,33 @@ type habitRowData struct {
 }
 
 type daySquare struct {
-	Status  model.DayStatus
-	Date    time.Time
-	WeekSep bool // insert extra space before this square (week separator)
-	IsToday bool
+	Status    model.DayStatus
+	Date      time.Time
+	WeekSep   bool // insert extra space before this square (week separator)
+	IsToday   bool
+	Unchecked bool
+}
+
+type headerDay struct {
+	Num       string
+	Unchecked bool
 }
 
 type weekGroup struct {
 	Label string
-	Days  []string
+	Days  []headerDay
 }
 
 type rollingViewData struct {
-	Label      string
-	WeekGroups []weekGroup
-	DayLabels  []string
-	DailyPcts  []float64
-	WeeklyPcts []float64
-	OverallPct float64 // -1 = no data; 0–100 otherwise
-	TotalGreen int
-	TotalPoss  int
-}
-
-type backfillData struct {
-	HabitID   int64
-	HabitName string
-	Date      time.Time
-	DateStr   string
-	Idx       int
-	Total     int
+	Label          string
+	WeekGroups     []weekGroup
+	DayLabels      []string
+	DailyPcts      []float64
+	WeeklyPcts     []float64
+	OverallPct     float64 // -1 = no data; 0–100 otherwise
+	TotalGreen     int
+	TotalPoss      int
+	UncheckedDates map[string]bool
 }
 
 type habitStatsWithChart struct {

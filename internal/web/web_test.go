@@ -92,7 +92,7 @@ func TestIndex_ShowsNoHistory(t *testing.T) {
 	}
 }
 
-func TestIndex_ShowsBackfillBanner(t *testing.T) {
+func TestIndex_UncheckedHighlighting_PastDays(t *testing.T) {
 	database := openTestDB(t)
 	srv := newTestServer(t, database)
 
@@ -106,8 +106,78 @@ func TestIndex_ShowsBackfillBanner(t *testing.T) {
 	w := httptest.NewRecorder()
 	srv.ServeHTTP(w, req)
 
-	if !strings.Contains(w.Body.String(), "BACKFILL") {
-		t.Error("expected backfill banner for habit with gap")
+	body := w.Body.String()
+	if !strings.Contains(body, "day-unchecked") {
+		t.Error("expected day-unchecked class for days with gaps")
+	}
+	if !strings.Contains(body, "sq-unchecked") {
+		t.Error("expected sq-unchecked class for gray cells with gaps")
+	}
+}
+
+func TestIndex_UncheckedHighlighting_TodayExcluded(t *testing.T) {
+	database := openTestDB(t)
+	srv := newTestServer(t, database)
+
+	// Habit started today, no entries → today is unknown but should NOT be unchecked
+	td := today()
+	h, _ := service.CreateHabit(database, "NewHabit", td, true, nil)
+	service.RecordEntry(database, h.ID, td, true) // has history but only today
+
+	req := httptest.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	body := w.Body.String()
+	if strings.Contains(body, "day-unchecked") {
+		t.Error("did not expect day-unchecked when only today exists")
+	}
+	if strings.Contains(body, "sq-unchecked") {
+		t.Error("did not expect sq-unchecked when only today exists")
+	}
+}
+
+func TestIndex_UncheckedHighlighting_AllFilled(t *testing.T) {
+	database := openTestDB(t)
+	srv := newTestServer(t, database)
+
+	// Habit started 2 days ago, all days filled
+	td := today()
+	startDate := td.AddDate(0, 0, -2)
+	h, _ := service.CreateHabit(database, "FilledHabit", startDate, true, nil)
+	service.RecordEntry(database, h.ID, startDate, true)
+	service.RecordEntry(database, h.ID, startDate.AddDate(0, 0, 1), true)
+	service.RecordEntry(database, h.ID, td, true)
+
+	req := httptest.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	body := w.Body.String()
+	if strings.Contains(body, "day-unchecked") {
+		t.Error("did not expect day-unchecked when all days are filled")
+	}
+	if strings.Contains(body, "sq-unchecked") {
+		t.Error("did not expect sq-unchecked when all days are filled")
+	}
+}
+
+func TestIndex_UncheckedHighlighting_InactiveIgnored(t *testing.T) {
+	database := openTestDB(t)
+	srv := newTestServer(t, database)
+
+	// Habit with last entry >42 days ago → inactive, should not produce unchecked
+	h, _ := service.CreateHabit(database, "OldHabit", d("2025-01-01"), true, nil)
+	service.RecordEntry(database, h.ID, d("2025-01-01"), true)
+	// No other entries, but habit is inactive (>42 days since last entry)
+
+	req := httptest.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	body := w.Body.String()
+	if strings.Contains(body, "sq-unchecked") {
+		t.Error("did not expect sq-unchecked for inactive habit")
 	}
 }
 
@@ -144,8 +214,8 @@ func TestIndex_NormalMode(t *testing.T) {
 	if strings.Contains(body, "WEEKLY PROMOTION") {
 		t.Error("did not expect promotion banner")
 	}
-	if strings.Contains(body, "BACKFILL") {
-		t.Error("did not expect backfill banner")
+	if strings.Contains(body, "day-unchecked") {
+		t.Error("did not expect unchecked highlighting")
 	}
 	if !strings.Contains(body, "Reading") {
 		t.Error("expected habit name")
@@ -218,61 +288,6 @@ func TestRecordEntry_ReturnsUpdatedRow(t *testing.T) {
 	}
 	if !strings.Contains(body, "sq-green") {
 		t.Error("expected green square in updated row")
-	}
-}
-
-// --- Backfill tests ---
-
-func TestBackfillAnswer_Yes(t *testing.T) {
-	database := openTestDB(t)
-	srv := newTestServer(t, database)
-
-	yesterday := today().AddDate(0, 0, -1)
-	h, _ := service.CreateHabit(database, "Jogging", yesterday.AddDate(0, 0, -1), true, nil)
-	// Record entry for start date so backfill triggers for yesterday
-	service.RecordEntry(database, h.ID, yesterday.AddDate(0, 0, -1), true)
-
-	dateStr := yesterday.Format("2006-01-02")
-	req := httptest.NewRequest("POST", "/backfill/"+itoa(h.ID)+"/"+dateStr, nil)
-	w := httptest.NewRecorder()
-	srv.ServeHTTP(w, req)
-
-	if w.Code != 200 {
-		t.Fatalf("status = %d, want 200", w.Code)
-	}
-
-	e, _ := service.GetEntryForDay(database, h.ID, yesterday)
-	if e == nil {
-		t.Fatal("expected entry to be created")
-	}
-	if !e.DidIt {
-		t.Error("expected did_it=true for backfill yes")
-	}
-}
-
-func TestBackfillAnswer_No(t *testing.T) {
-	database := openTestDB(t)
-	srv := newTestServer(t, database)
-
-	yesterday := today().AddDate(0, 0, -1)
-	h, _ := service.CreateHabit(database, "Stretching", yesterday.AddDate(0, 0, -1), true, nil)
-	service.RecordEntry(database, h.ID, yesterday.AddDate(0, 0, -1), true)
-
-	dateStr := yesterday.Format("2006-01-02")
-	req := httptest.NewRequest("POST", "/backfill/skip/"+itoa(h.ID)+"/"+dateStr, nil)
-	w := httptest.NewRecorder()
-	srv.ServeHTTP(w, req)
-
-	if w.Code != 200 {
-		t.Fatalf("status = %d, want 200", w.Code)
-	}
-
-	e, _ := service.GetEntryForDay(database, h.ID, yesterday)
-	if e == nil {
-		t.Fatal("expected entry to be created")
-	}
-	if e.DidIt {
-		t.Error("expected did_it=false for backfill no")
 	}
 }
 
@@ -652,5 +667,355 @@ func TestAddHabitForm_Renders(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), "Add Habit") {
 		t.Error("expected 'Add Habit' title")
+	}
+}
+
+// --- buildHabitRow tests ---
+
+func TestBuildHabitRow_NoHistory(t *testing.T) {
+	database := openTestDB(t)
+	srv := newTestServer(t, database)
+
+	h, _ := service.CreateHabit(database, "Meditation", d("2025-02-03"), true, nil)
+
+	row := srv.buildHabitRow(h, d("2025-02-03"))
+
+	if row.HasHistory {
+		t.Error("expected HasHistory=false")
+	}
+	if row.DisplayCols != 28 {
+		t.Errorf("DisplayCols = %d, want 28", row.DisplayCols)
+	}
+	if len(row.Squares) != 0 {
+		t.Errorf("len(Squares) = %d, want 0", len(row.Squares))
+	}
+}
+
+func TestBuildHabitRow_Inactive(t *testing.T) {
+	database := openTestDB(t)
+	srv := newTestServer(t, database)
+
+	h, _ := service.CreateHabit(database, "Running", d("2025-01-06"), true, nil)
+	service.RecordEntry(database, h.ID, d("2025-01-06"), true)
+
+	row := srv.buildHabitRow(h, d("2025-03-15")) // 68 days later → >42 threshold
+
+	if !row.Inactive {
+		t.Error("expected Inactive=true")
+	}
+	if !strings.Contains(row.InactiveMsg, "inactive") {
+		t.Errorf("InactiveMsg = %q, want to contain 'inactive'", row.InactiveMsg)
+	}
+	if row.RollingGreen != 0 {
+		t.Errorf("RollingGreen = %d, want 0", row.RollingGreen)
+	}
+	if row.RollingRed != 0 {
+		t.Errorf("RollingRed = %d, want 0", row.RollingRed)
+	}
+	if row.RollingRate != -1 {
+		t.Errorf("RollingRate = %f, want -1", row.RollingRate)
+	}
+}
+
+func TestBuildHabitRow_RollingWindow(t *testing.T) {
+	database := openTestDB(t)
+	srv := newTestServer(t, database)
+
+	h, _ := service.CreateHabit(database, "Exercise", d("2025-01-06"), true, nil)
+	service.RecordEntry(database, h.ID, d("2025-01-06"), true)  // before 28-day window
+	service.RecordEntry(database, h.ID, d("2025-01-14"), true)  // in window → green
+	service.RecordEntry(database, h.ID, d("2025-01-15"), false) // consecutive skip → red
+	service.RecordEntry(database, h.ID, d("2025-01-16"), false) // consecutive skip → red
+
+	td := d("2025-02-10")
+	row := srv.buildHabitRow(h, td)
+
+	if row.RollingGreen != 1 {
+		t.Errorf("RollingGreen = %d, want 1", row.RollingGreen)
+	}
+	if row.RollingRed != 2 {
+		t.Errorf("RollingRed = %d, want 2", row.RollingRed)
+	}
+	// Rate = 1 / (1+2) ≈ 0.333
+	if row.RollingRate < 0.33 || row.RollingRate > 0.34 {
+		t.Errorf("RollingRate = %f, want ~0.333", row.RollingRate)
+	}
+	// Squares from Jan 6 to Feb 10 = 36 days
+	if len(row.Squares) != 36 {
+		t.Errorf("len(Squares) = %d, want 36", len(row.Squares))
+	}
+	if row.DisplayCols != 36 {
+		t.Errorf("DisplayCols = %d, want 36", row.DisplayCols)
+	}
+}
+
+func TestBuildHabitRow_DisplayColsMin28(t *testing.T) {
+	database := openTestDB(t)
+	srv := newTestServer(t, database)
+
+	h, _ := service.CreateHabit(database, "Yoga", d("2025-02-05"), true, nil)
+	service.RecordEntry(database, h.ID, d("2025-02-05"), true)
+
+	row := srv.buildHabitRow(h, d("2025-02-10"))
+
+	// Squares from Feb 5 to Feb 10 = 6 days
+	if len(row.Squares) != 6 {
+		t.Errorf("len(Squares) = %d, want 6", len(row.Squares))
+	}
+	if row.DisplayCols != 28 {
+		t.Errorf("DisplayCols = %d, want 28", row.DisplayCols)
+	}
+}
+
+// --- computeRollingData tests ---
+
+func TestComputeRollingData_EmptyRows(t *testing.T) {
+	rd := computeRollingData(d("2025-02-10"), []habitRowData{})
+
+	if rd.Label != "Last 4 Weeks" {
+		t.Errorf("Label = %q, want %q", rd.Label, "Last 4 Weeks")
+	}
+	if len(rd.DayLabels) != 28 {
+		t.Errorf("len(DayLabels) = %d, want 28", len(rd.DayLabels))
+	}
+	if rd.OverallPct != -1 {
+		t.Errorf("OverallPct = %f, want -1", rd.OverallPct)
+	}
+	if rd.TotalGreen != 0 {
+		t.Errorf("TotalGreen = %d, want 0", rd.TotalGreen)
+	}
+
+	totalDays := 0
+	for _, wg := range rd.WeekGroups {
+		totalDays += len(wg.Days)
+	}
+	if totalDays != 28 {
+		t.Errorf("total week group days = %d, want 28", totalDays)
+	}
+}
+
+func TestComputeRollingData_WeekGroups(t *testing.T) {
+	rd := computeRollingData(d("2025-02-12"), []habitRowData{}) // Wednesday
+
+	// Last week group's last day should be "12" (Feb 12)
+	lastWG := rd.WeekGroups[len(rd.WeekGroups)-1]
+	lastDay := lastWG.Days[len(lastWG.Days)-1]
+	if lastDay.Num != "12" {
+		t.Errorf("last day = %q, want %q", lastDay.Num, "12")
+	}
+
+	// First week group's label should start with "Jan"
+	if !strings.HasPrefix(rd.WeekGroups[0].Label, "Jan") {
+		t.Errorf("first week group label = %q, want prefix 'Jan'", rd.WeekGroups[0].Label)
+	}
+
+	// Sum of all week group days should be 28
+	totalDays := 0
+	for _, wg := range rd.WeekGroups {
+		totalDays += len(wg.Days)
+	}
+	if totalDays != 28 {
+		t.Errorf("total days = %d, want 28", totalDays)
+	}
+}
+
+func TestComputeRollingData_UncheckedDates(t *testing.T) {
+	td := d("2025-02-10")
+
+	row := habitRowData{
+		HasHistory: true,
+		Inactive:   false,
+		Squares: []daySquare{
+			{Status: model.DayDone, Date: d("2025-02-08"), IsToday: false},
+			{Status: model.DayUnknown, Date: d("2025-02-09"), IsToday: false},  // unchecked
+			{Status: model.DayUnknown, Date: d("2025-02-10"), IsToday: true},   // today — excluded
+		},
+	}
+	rd := computeRollingData(td, []habitRowData{row})
+
+	if !rd.UncheckedDates["2025-02-09"] {
+		t.Error("expected 2025-02-09 to be unchecked")
+	}
+	if rd.UncheckedDates["2025-02-10"] {
+		t.Error("did not expect today (2025-02-10) to be unchecked")
+	}
+	if rd.UncheckedDates["2025-02-08"] {
+		t.Error("did not expect 2025-02-08 (done) to be unchecked")
+	}
+
+	// Verify header days have Unchecked set
+	found := false
+	for _, wg := range rd.WeekGroups {
+		for _, hd := range wg.Days {
+			if hd.Num == "9" && hd.Unchecked {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Error("expected header day '9' to have Unchecked=true")
+	}
+}
+
+func TestComputeRollingData_FiltersInactive(t *testing.T) {
+	td := d("2025-02-10")
+
+	activeRow := habitRowData{
+		HasHistory:   true,
+		Inactive:     false,
+		RollingGreen: 1,
+		Squares:      []daySquare{{Status: model.DayDone, Date: td}},
+	}
+	inactiveRow := habitRowData{
+		HasHistory:   true,
+		Inactive:     true,
+		RollingGreen: 0, // inactive habits have 0 rolling stats from buildHabitRow
+		Squares:      []daySquare{{Status: model.DayDone, Date: td}},
+	}
+	noHistoryRow := habitRowData{
+		HasHistory: false,
+	}
+
+	rows := []habitRowData{activeRow, inactiveRow, noHistoryRow}
+	rd := computeRollingData(td, rows)
+
+	if rd.TotalGreen != 1 {
+		t.Errorf("TotalGreen = %d, want 1", rd.TotalGreen)
+	}
+	// Last daily percentage = 100% (only active row counted in per-day stats)
+	lastPct := rd.DailyPcts[len(rd.DailyPcts)-1]
+	if lastPct != 100.0 {
+		t.Errorf("last DailyPcts = %f, want 100.0", lastPct)
+	}
+}
+
+// --- computeDisplayCols tests ---
+
+func TestComputeDisplayCols_NoHabits(t *testing.T) {
+	database := openTestDB(t)
+	srv := newTestServer(t, database)
+
+	cols := srv.computeDisplayCols(d("2025-02-10"))
+	if cols != 28 {
+		t.Errorf("computeDisplayCols = %d, want 28", cols)
+	}
+}
+
+func TestComputeDisplayCols_OldHabit(t *testing.T) {
+	database := openTestDB(t)
+	srv := newTestServer(t, database)
+
+	service.CreateHabit(database, "Running", d("2024-01-01"), true, nil)
+
+	cols := srv.computeDisplayCols(d("2025-02-10"))
+	if cols <= 400 {
+		t.Errorf("computeDisplayCols = %d, want >400", cols)
+	}
+}
+
+// --- handleToggleEntry tests ---
+
+func TestToggleEntry_NilToDone(t *testing.T) {
+	database := openTestDB(t)
+	srv := newTestServer(t, database)
+
+	h, _ := service.CreateHabit(database, "Yoga", d("2025-01-06"), true, nil)
+
+	req := httptest.NewRequest("POST", "/habits/"+itoa(h.ID)+"/entry/toggle?date=2025-01-10", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+
+	e, _ := service.GetEntryForDay(database, h.ID, d("2025-01-10"))
+	if e == nil {
+		t.Fatal("expected entry to be created")
+	}
+	if !e.DidIt {
+		t.Error("expected did_it=true")
+	}
+	if !strings.Contains(w.Body.String(), "Yoga") {
+		t.Error("expected habit name in response body")
+	}
+}
+
+func TestToggleEntry_DoneToSkip(t *testing.T) {
+	database := openTestDB(t)
+	srv := newTestServer(t, database)
+
+	h, _ := service.CreateHabit(database, "Yoga", d("2025-01-06"), true, nil)
+	service.RecordEntry(database, h.ID, d("2025-01-10"), true)
+
+	req := httptest.NewRequest("POST", "/habits/"+itoa(h.ID)+"/entry/toggle?date=2025-01-10", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+
+	e, _ := service.GetEntryForDay(database, h.ID, d("2025-01-10"))
+	if e == nil {
+		t.Fatal("expected entry to exist")
+	}
+	if e.DidIt {
+		t.Error("expected did_it=false")
+	}
+}
+
+func TestToggleEntry_SkipToDelete(t *testing.T) {
+	database := openTestDB(t)
+	srv := newTestServer(t, database)
+
+	h, _ := service.CreateHabit(database, "Yoga", d("2025-01-06"), true, nil)
+	service.RecordEntry(database, h.ID, d("2025-01-10"), false)
+
+	req := httptest.NewRequest("POST", "/habits/"+itoa(h.ID)+"/entry/toggle?date=2025-01-10", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+
+	e, _ := service.GetEntryForDay(database, h.ID, d("2025-01-10"))
+	if e != nil {
+		t.Error("expected entry to be deleted (nil)")
+	}
+}
+
+func TestToggleEntry_InvalidDate(t *testing.T) {
+	database := openTestDB(t)
+	srv := newTestServer(t, database)
+
+	h, _ := service.CreateHabit(database, "Yoga", d("2025-01-06"), true, nil)
+
+	req := httptest.NewRequest("POST", "/habits/"+itoa(h.ID)+"/entry/toggle?date=not-a-date", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != 400 {
+		t.Fatalf("status = %d, want 400", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "invalid date") {
+		t.Error("expected 'invalid date' error message")
+	}
+}
+
+func TestToggleEntry_InvalidID(t *testing.T) {
+	database := openTestDB(t)
+	srv := newTestServer(t, database)
+
+	req := httptest.NewRequest("POST", "/habits/abc/entry/toggle?date=2025-01-10", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != 400 {
+		t.Fatalf("status = %d, want 400", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "invalid id") {
+		t.Error("expected 'invalid id' error message")
 	}
 }

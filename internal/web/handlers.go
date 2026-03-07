@@ -39,19 +39,6 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		promoHabits, _ = service.ListNonObligatedHabits(s.db)
 	}
 
-	var bf *backfillData
-	items, _ := service.GetPendingBackfill(s.db, td)
-	if len(items) > 0 {
-		bf = &backfillData{
-			HabitID:   items[0].Habit.ID,
-			HabitName: items[0].Habit.Name,
-			Date:      items[0].Date,
-			DateStr:   items[0].Date.Format("Mon, Jan 2"),
-			Idx:       1,
-			Total:     len(items),
-		}
-	}
-
 	rd := computeRollingData(td, rows)
 
 	// Compute total display columns from the rolling data's week groups.
@@ -59,9 +46,13 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	for _, wg := range rd.WeekGroups {
 		totalCols += len(wg.Days)
 	}
-	// Set DisplayCols on every row to match the header column count.
+	// Set DisplayCols and Unchecked on every row.
 	for i := range rows {
 		rows[i].DisplayCols = totalCols
+		for j := range rows[i].Squares {
+			key := rows[i].Squares[j].Date.Format("2006-01-02")
+			rows[i].Squares[j].Unchecked = rd.UncheckedDates[key]
+		}
 	}
 
 	data := indexData{
@@ -71,7 +62,6 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		GlobalStats:       gs,
 		NeedPromotion:     needPromo,
 		PromoHabits:       promoHabits,
-		BackfillItem:      bf,
 		NonObligatedCount: nonOblCount,
 		HasHabits:         len(habits) > 0,
 		RollingData:       rd,
@@ -164,15 +154,32 @@ func computeRollingData(td time.Time, rows []habitRowData) rollingViewData {
 	// Compute the date range: oldest..today, spanning maxDays.
 	oldest := td.AddDate(0, 0, -(maxDays - 1))
 
+	// Compute unchecked dates: past days with DayUnknown for active habits with history.
+	uncheckedDates := map[string]bool{}
+	for _, row := range rows {
+		if !row.HasHistory || row.Inactive {
+			continue
+		}
+		for _, sq := range row.Squares {
+			if sq.Status == model.DayUnknown && !sq.IsToday {
+				uncheckedDates[sq.Date.Format("2006-01-02")] = true
+			}
+		}
+	}
+
 	// Build calendar week groups (Mon-Sun) in chronological order.
 	weekStart := mondayOf(oldest)
 	var weekGroups []weekGroup
 	for !weekStart.After(td) {
 		weekEnd := weekStart.AddDate(0, 0, 6)
-		var days []string
+		var days []headerDay
 		for d := weekStart; !d.After(weekEnd); d = d.AddDate(0, 0, 1) {
 			if !d.Before(oldest) && !d.After(td) {
-				days = append(days, strconv.Itoa(d.Day()))
+				key := d.Format("2006-01-02")
+				days = append(days, headerDay{
+					Num:       strconv.Itoa(d.Day()),
+					Unchecked: uncheckedDates[key],
+				})
 			}
 		}
 		if len(days) > 0 {
@@ -258,14 +265,15 @@ func computeRollingData(td time.Time, rows []habitRowData) rollingViewData {
 	}
 
 	return rollingViewData{
-		Label:      "Last 4 Weeks",
-		WeekGroups: weekGroups,
-		DayLabels:  dayLabels,
-		DailyPcts:  dailyPcts,
-		WeeklyPcts: weeklyPcts,
-		OverallPct: overallPct,
-		TotalGreen: totalGreen,
-		TotalPoss:  totalGreen + totalRed,
+		Label:          "Last 4 Weeks",
+		WeekGroups:     weekGroups,
+		DayLabels:      dayLabels,
+		DailyPcts:      dailyPcts,
+		WeeklyPcts:     weeklyPcts,
+		OverallPct:     overallPct,
+		TotalGreen:     totalGreen,
+		TotalPoss:      totalGreen + totalRed,
+		UncheckedDates: uncheckedDates,
 	}
 }
 
@@ -384,70 +392,6 @@ func (s *Server) handleToggleEntry(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, `<div id="global-stats" hx-swap-oob="innerHTML">`)
 	s.tmpl.globalLine.ExecuteTemplate(w, "global_stats", gs)
 	fmt.Fprint(w, `</div>`)
-}
-
-func (s *Server) handleBackfillAnswer(w http.ResponseWriter, r *http.Request) {
-	td := today()
-	habitID, err := strconv.ParseInt(r.PathValue("habitID"), 10, 64)
-	if err != nil {
-		http.Error(w, "invalid habit id", 400)
-		return
-	}
-	date, err := time.Parse("2006-01-02", r.PathValue("date"))
-	if err != nil {
-		http.Error(w, "invalid date", 400)
-		return
-	}
-
-	// "Yes" = did it
-	if err := service.RecordEntry(s.db, habitID, date, true); err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-
-	s.renderNextBackfill(w, td)
-}
-
-func (s *Server) handleBackfillSkip(w http.ResponseWriter, r *http.Request) {
-	td := today()
-	habitID, err := strconv.ParseInt(r.PathValue("habitID"), 10, 64)
-	if err != nil {
-		http.Error(w, "invalid habit id", 400)
-		return
-	}
-	date, err := time.Parse("2006-01-02", r.PathValue("date"))
-	if err != nil {
-		http.Error(w, "invalid date", 400)
-		return
-	}
-
-	// "No" = did not do it
-	if err := service.RecordEntry(s.db, habitID, date, false); err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-
-	s.renderNextBackfill(w, td)
-}
-
-func (s *Server) renderNextBackfill(w http.ResponseWriter, td time.Time) {
-	items, _ := service.GetPendingBackfill(s.db, td)
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if len(items) == 0 {
-		// Backfill done — trigger page reload to refresh habit rows
-		w.Header().Set("HX-Refresh", "true")
-		return
-	}
-
-	bf := &backfillData{
-		HabitID:   items[0].Habit.ID,
-		HabitName: items[0].Habit.Name,
-		Date:      items[0].Date,
-		DateStr:   items[0].Date.Format("Mon, Jan 2"),
-		Idx:       1,
-		Total:     len(items),
-	}
-	s.tmpl.backfill.ExecuteTemplate(w, "backfill_item", bf)
 }
 
 func (s *Server) handlePromotionConfirm(w http.ResponseWriter, r *http.Request) {
