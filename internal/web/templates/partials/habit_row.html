@@ -19,7 +19,7 @@
         hx-post="/habits/{{$.Habit.ID}}/entry/toggle?date={{fmtDate .Date}}"
         hx-target="#habit-{{$.Habit.ID}}"
         hx-swap="outerHTML"
-        {{if and (hasEntry .Status) (not .IsToday)}}hx-confirm="Change entry for {{fmtDateHuman .Date}}?"{{end}}
+        {{if and (hasEntry .Status) (not .IsToday) (isOlderThan7Days .Date)}}hx-confirm="Change entry for {{fmtDateHuman .Date}}?"{{end}}
         title="{{fmtDateHuman .Date}}{{if .IsToday}} (today){{end}}"
         {{end}}></td>
     {{end}}

@@ -86,6 +86,9 @@ func loadTemplates() (*templateSet, error) {
 			return template.JS(b)
 		},
 		"isDayFuture": func(s model.DayStatus) bool { return s == model.DayFuture },
+		"isOlderThan7Days": func(d time.Time) bool {
+			return time.Now().Sub(d) > 7*24*time.Hour
+		},
 		"hasEntry": func(s model.DayStatus) bool {
 			return s == model.DayDone || s == model.DayYellow || s == model.DayRed
 		},
